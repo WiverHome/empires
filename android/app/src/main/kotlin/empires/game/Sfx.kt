@@ -66,6 +66,9 @@ object Sfx : Disposable {
 
     override fun dispose() {
         sounds.values.forEach { it.dispose() }
+        sounds.clear()
         music?.dispose()
+        music = null
+        musicTrack = null
     }
 }

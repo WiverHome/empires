@@ -244,6 +244,28 @@ function procPixels(kind) {
     px(g, PAL.outline, 6, 8, 1, 2); px(g, PAL.outline, 9, 8, 1, 2);
     px(g, PAL.outline, 7, 1, 2, 2); px(g, '#ffe27a', 7, 2, 1, 1);
     px(g, '#fff7c8', 2, 3, 1, 1); px(g, '#fff7c8', 13, 5, 1, 1); px(g, '#ffe27a', 12, 12, 1, 1); px(g, '#ffe27a', 2, 12, 1, 1);
+  } else if (kind === 'wolf') {
+    // серый волк в профиль: o - обводка, g/l/d - шерсть, e - глаз, n - нос
+    const pal = { o: PAL.outline, g: PAL.stoneMid, l: PAL.stone, d: PAL.stoneDark, e: '#ffd84a', n: PAL.night };
+    const grid = [
+      '................',
+      '................',
+      '...........o.o..',
+      '..........ogogo.',
+      '..........ogggo.',
+      '.o.......oggeggo',
+      'olo......ogggggn',
+      'oglo....ogglllo.',
+      '.ogloooogggllo..',
+      '..ogggggggggo...',
+      '..oglllllgggo...',
+      '..ogllllggggo...',
+      '..ogo.ogo.ogo...',
+      '..odo.odo.odo...',
+      '..oo..oo..oo....',
+      '................',
+    ];
+    grid.forEach((row, y) => [...row].forEach((ch, x) => { if (pal[ch]) px(g, pal[ch], x, y); }));
   } else if (kind === 'crystal') {
     // кристалл на каменной подставке
     px(g, PAL.outline, 3, 12, 10, 3); px(g, PAL.stoneMid, 4, 13, 8, 1);

@@ -247,3 +247,4 @@ table img { width: 36px; height: 36px; image-rendering: pixelated; }
 .map-pick { flex: 1; min-width: 0; text-align: center; padding: 4px 6px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--panel-2); }
 .map-pick b { display: block; color: var(--accent); }
 .map-pick small { display: block; color: var(--muted); font-size: 12px; line-height: 1.25; }
+.modal a { color: var(--gold); }

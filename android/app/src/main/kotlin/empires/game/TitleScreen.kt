@@ -23,7 +23,8 @@ class TitleScreen : AppScreen() {
         col.add(Ui.label("Empires", C.accent, Ui.fontTitle).centered()).growX().row()
         col.add(Ui.label("Хроники Эльдора", C.muted, Ui.fontSmall).centered()).growX().padBottom(24f).row()
         col.add(box).width(300f).row()
-        col.add(Ui.small("Графика и звуки: Kenney; музыка: RandomMind, request (CC0)", C.muted).centered()).width(300f).padTop(20f)
+        col.add(Ui.small("Графика и звуки: Kenney; музыка: RandomMind, request (CC0)", C.muted).centered()).width(300f).padTop(20f).row()
+        col.add(Ui.small("Версия ${BuildConfig.VERSION_NAME}", C.muted).centered()).width(300f).padTop(4f)
         root.add(col).expand().center()
         renderTitle()
         return root
@@ -196,8 +197,32 @@ fun showRules() {
     for (t in TERRAIN.values) {
         m.add(Ui.small("${t.name}: ход ${if (t.cost.isFinite()) t.cost.toInt().toString() else "-"}, защита +${t.def}", C.text)).growX().left().row()
     }
-    m.add(Ui.button("Понятно", primary = true) { APP.closeModal() }).right().padTop(10f)
+    m.add(Ui.label("Об игре и лицензиях", C.gold)).left().padTop(12f).row()
+    m.add(Ui.small("Empires: Хроники Эльдора, версия ${BuildConfig.VERSION_NAME}. Код - лицензия MIT. Графика, звуки и музыка - CC0 (Kenney, request, RandomMind). Библиотеки: libGDX, Kotlin, kotlinx.coroutines (Apache 2.0), FreeType (FTL), Google Play services Nearby.", C.text)).growX().left().row()
+    val row = Table()
+    row.add(Ui.button("Тексты лицензий") { showLicenses() }).padRight(8f)
+    row.add(Ui.button("Понятно", primary = true) { APP.closeModal() })
+    m.add(row).right().padTop(10f)
     APP.openModal(m)
+}
+
+// Полные тексты лицензий из APK (assets: NOTICES.txt и APACHE-2.0.txt)
+fun showLicenses() {
+    val m = Table()
+    m.add(Ui.label("Лицензии", C.gold, Ui.fontBig)).left().row()
+    for (f in listOf("NOTICES.txt", "APACHE-2.0.txt")) {
+        val text = runCatching { Gdx.files.internal(f).readString("UTF-8") }.getOrDefault("")
+        // длинный текст режется на абзацы: одна огромная подпись тяжела для раскладки
+        for (part in text.split(Regex("""\n\s*\n"""))) if (part.isNotBlank()) {
+            // строки внутри абзаца склеиваются (в файлах перенос по 80 символов), пункты списков - с новой строки
+            val para = part.trim().lines().map { it.trim() }.reduce { acc, line ->
+                if (line.startsWith("-") || line.startsWith("(") || line.startsWith("=") || acc.endsWith(":")) "$acc\n$line" else "$acc $line"
+            }
+            m.add(Ui.label(para, C.text, Ui.fontSmall, wrap = true)).growX().left().padTop(6f).row()
+        }
+    }
+    m.add(Ui.button("Назад", primary = true) { showRules() }).right().padTop(10f)
+    APP.openModal(m, dismiss = { showRules() })
 }
 
 /* ---------- Коды карт ---------- */

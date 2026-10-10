@@ -1,6 +1,8 @@
 /* ============ DATA: местность, юниты, баланс ============ */
 'use strict';
 
+const GAME_VERSION = '0.3.0';
+
 // Общие числа баланса
 const BAL = {
   maxHp: 100,
@@ -83,7 +85,7 @@ const UNIT_DEFS = {
     desc: 'Быстрый, летает над водой и горами. Не получает защиту от местности.',
   },
   wolf: {
-    name: 'Волк', sprite: 124, cost: 250, move: 6, atk: [40, 45], def: 5, range: [1, 1],
+    name: 'Волк', proc: 'wolf', cost: 250, move: 6, atk: [40, 45], def: 5, range: [1, 1],
     woods: true,
     desc: 'Быстрый и дешёвый. По лесу ходит как по равнине.',
   },

@@ -142,6 +142,8 @@ object Ui : Disposable {
         panel2 = rounded(C.panel2, C.line, shadow = false)
         panelAccent = rounded(C.panel2, C.accent, shadow = false)
         dim = TextureRegionDrawable(white).tint(Color(0.04f, 0.02f, 0.05f, 0.6f))
+        primaryStyle = style(true)
+        secondaryStyle = style(false)
     }
 
     private fun tex(p: Pixmap): Texture { val t = Texture(p); p.dispose(); textures.add(t); return t }
@@ -204,8 +206,9 @@ object Ui : Disposable {
         downFontColor = fontColor
         disabledFontColor = Color.valueOf("#6f6380")
     }
-    private val primaryStyle by lazy { style(true) }
-    private val secondaryStyle by lazy { style(false) }
+    // Android может оставить процесс живым после выхода: при новом запуске всё строится заново (load)
+    private lateinit var primaryStyle: TextButton.TextButtonStyle
+    private lateinit var secondaryStyle: TextButton.TextButtonStyle
 
     // Кнопка: primary - золотая, иначе тёмная. Клик - звук и действие.
     fun button(text: String, primary: Boolean = false, sound: Boolean = true, onClick: () -> Unit): TextButton {
@@ -240,6 +243,7 @@ object Ui : Disposable {
     override fun dispose() {
         if (::font.isInitialized) { font.dispose(); fontSmall.dispose(); fontBig.dispose(); fontTitle.dispose() }
         textures.forEach { it.dispose() }
+        textures.clear()
     }
 }
 

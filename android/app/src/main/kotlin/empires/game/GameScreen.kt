@@ -702,7 +702,8 @@ class GameScreen(
             "action" -> undoMove()
             "confirm" -> cancelConfirm()
             "selected" -> deselect()
-            else -> openGameMenu()
+            // смотрели зону чужого воина: сначала убрать подсветку, меню - следующим нажатием
+            else -> if (hl.enemy != null || selected != null) deselect() else openGameMenu()
         }
     }
 

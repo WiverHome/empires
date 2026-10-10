@@ -25,12 +25,13 @@ android {
         applicationId = "io.github.wiverhome.empires"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     sourceSets["main"].apply {
-        assets.srcDirs("../../assets")
+        // общие картинки и звуки + тексты лицензий (NOTICES.txt, APACHE-2.0.txt)
+        assets.srcDirs("../../assets", "src/main/licenses")
         jniLibs.srcDirs("libs")
     }
 
@@ -56,6 +57,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    buildFeatures { buildConfig = true }
     packaging { resources.excludes += "META-INF/*" }
 }
 

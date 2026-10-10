@@ -132,7 +132,7 @@ val UNIT_DEFS: Map<String, UnitDef> = linkedMapOf(
     ),
     "wolf" to UnitDef(
         name = "Волк",
-        sprite = 124,
+        proc = "wolf",
         cost = 250,
         move = 6,
         atk = listOf(40, 45),

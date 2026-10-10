@@ -256,6 +256,28 @@ class Assets : Disposable {
             g.px(PAL.outline, 6, 8, 1, 2); g.px(PAL.outline, 9, 8, 1, 2)
             g.px(PAL.outline, 7, 1, 2, 2); g.px("#ffe27a", 7, 2, 1, 1)
             g.px("#fff7c8", 2, 3, 1, 1); g.px("#fff7c8", 13, 5, 1, 1); g.px("#ffe27a", 12, 12, 1, 1); g.px("#ffe27a", 2, 12, 1, 1)
+        } else if (kind == "wolf") {
+            // серый волк в профиль: o - обводка, g/l/d - шерсть, e - глаз, n - нос
+            val pal = mapOf('o' to PAL.outline, 'g' to PAL.stoneMid, 'l' to PAL.stone, 'd' to PAL.stoneDark, 'e' to "#ffd84a", 'n' to PAL.night)
+            val grid = listOf(
+                "................",
+                "................",
+                "...........o.o..",
+                "..........ogogo.",
+                "..........ogggo.",
+                ".o.......oggeggo",
+                "olo......ogggggn",
+                "oglo....ogglllo.",
+                ".ogloooogggllo..",
+                "..ogggggggggo...",
+                "..oglllllgggo...",
+                "..ogllllggggo...",
+                "..ogo.ogo.ogo...",
+                "..odo.odo.odo...",
+                "..oo..oo..oo....",
+                "................",
+            )
+            grid.forEachIndexed { y, row -> row.forEachIndexed { x, ch -> pal[ch]?.let { g.px(it, x, y) } } }
         } else if (kind == "crystal") {
             g.px(PAL.outline, 3, 12, 10, 3); g.px(PAL.stoneMid, 4, 13, 8, 1)
             val rows = listOf(7 to 2, 6 to 4, 5 to 6, 5 to 6, 5 to 6, 5 to 6, 6 to 4, 7 to 2)

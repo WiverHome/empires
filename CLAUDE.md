@@ -30,6 +30,8 @@
 - Тексты для игрока на русском.
 - Баланс и числа - в константах (BAL, AI_TUNE, UNIT_DEFS).
 - Формат сохранения (`empires.save.v1`) менять обратно совместимо.
+- Версия одна на обе версии игры: `GAME_VERSION` в `js/data.js` и `versionName`/`versionCode` в `android/app/build.gradle.kts`; при релизе менять вместе.
+- Лицензии: код - MIT (`LICENSE`), ресурсы - CC0 (`assets/CREDITS.md`), сторонние библиотеки - `THIRD_PARTY_NOTICES.md` и `android/app/src/main/licenses/` (входит в APK). Новую зависимость или ресурс - сразу вписать туда.
 - Графика, звуки и музыка только CC0, авторы в `assets/CREDITS.md`. Шрифт в Android - системный (не входит в APK).
 - Правила в двух версиях должны совпадать до бита: случайность только через `rand(st)`, порядок обхода как в JS (LinkedHashMap), JS `Math.round` = `floor(x + 0.5)`.
 

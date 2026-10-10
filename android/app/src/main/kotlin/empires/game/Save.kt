@@ -44,9 +44,12 @@ object Save {
     var current: SavedGame? = null
     val replays = ArrayList<ReplayRec>()
 
-    private val store by lazy { Gdx.app.getPreferences(KEY) }
+    private val store get() = Gdx.app.getPreferences(KEY)
 
     fun load() {
+        // процесс мог пережить прошлый запуск: начать с чистого состояния
+        unlocked = 1; heroLevel = 0; current = null
+        completed.clear(); stars.clear(); achievements.clear(); prefs.clear(); maps.clear(); replays.clear()
         val raw = store.getString("data", "")
         if (raw.isNotEmpty()) runCatching { read(JsonReader().parse(raw)) }.onFailure { Gdx.app.error("Empires", "битое сохранение", it) }
         CUSTOM_MAPS.clear()

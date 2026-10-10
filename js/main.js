@@ -323,6 +323,9 @@ function showRules() {
     </ul>
     <h3>Воины</h3><div class="table-wrap"><table class="units"><tr><th></th><th></th><th>Цена</th><th>Атака</th><th>Защ.</th><th>Ход</th><th>Дальн.</th></tr>${rows}</table></div>
     <h3>Местность</h3><table class="terrain"><tr><th></th><th>Ход</th><th>Защита</th></tr>${terr}</table>
+    <h3>Об игре</h3>
+    <p class="muted">Empires: Хроники Эльдора, версия ${GAME_VERSION}. Код - лицензия MIT. Графика, звуки и музыка - CC0 (Kenney, request, RandomMind), подробности в <a href="https://github.com/WiverHome/empires/blob/main/assets/CREDITS.md" target="_blank" rel="noopener">CREDITS.md</a>.
+    Исходный код и Android-версия: <a href="https://github.com/WiverHome/empires" target="_blank" rel="noopener">github.com/WiverHome/empires</a>.</p>
     <div class="modal-actions"><button data-close>Понятно</button></div>`, 'rules-modal');
   m.querySelector('[data-close]').onclick = () => { closeModal(); if (GAME.st) openGameMenu(); };
 }
@@ -436,6 +439,7 @@ async function boot() {
   $('#btn-zoom-in').onclick = () => zoomStep(1);
   $('#btn-zoom-out').onclick = () => zoomStep(-1);
   $('#modal-root').addEventListener('click', e => { if (e.target.id === 'modal-root' && !GAME.st?.over) closeModal(); });
+  $('#version').textContent = 'Версия ' + GAME_VERSION;
   renderTitle();
   showScreen('title');
 }
