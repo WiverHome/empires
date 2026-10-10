@@ -1,0 +1,28 @@
+# Empires - правила работы
+
+Пошаговая тактика в духе Ancient Empires 2. Vanilla JS + Canvas без сборки: `index.html`, `style.css`, `js/*.js` (обычные `<script src>` с общей глобальной областью, порядок задаёт index.html). Это отдельный проект, к Embermarch отношения не имеет.
+
+## Карта кода
+- `js/data.js`: BAL (числа баланса), TERRAIN, MAP_LEGEND, UNIT_DEFS, BUY_LIST, TEAMS, TILE_SPRITES
+- `js/rules.js`: состояние партии и все правила без DOM (движение, бой, захват, найм, смена хода). Действия возвращают списки событий для анимации
+- `js/ai.js`: ИИ (`aiNextAction` возвращает одно действие, `aiApply` применяет без анимации), AI_TUNE
+- `js/campaign.js`: SPEAKERS, MISSIONS (карты, юниты, диалоги, triggers, check), evaluateOutcome, spawnNear
+- `js/sound.js`: синтезированные звуки (WebAudio)
+- `js/assets.js`: листы Kenney, процедурные тайлы, спрайты юнитов с обводкой цвета стороны
+- `js/render.js`: холст, камера, масштаб под экран (fitTs), подсветка, анимации
+- `js/game.js`: контроллер партии: ввод, меню действий, найм, диалоги, ход ИИ, триггеры, HUD
+- `js/main.js`: SAVE (localStorage), титул, список миссий, правила, ввод мыши/тача/клавиатуры, boot
+- `rules/ai/campaign/data` не трогают DOM: их грузят `tools/sim.js` и `tools/check-maps.js`
+
+## Ограничения
+- Главная цель - телефон в вертикальном положении, один экран без прокрутки. Карты не шире 11 и не выше 15 клеток (проверяет `tools/check-maps.js`). Окна на узком экране должны помещаться без прокрутки.
+- Тексты для игрока на русском.
+- Баланс и числа - в константах (BAL, AI_TUNE, UNIT_DEFS).
+- Формат сохранения (`empires.save.v1`) менять обратно совместимо.
+- Графика только CC0, авторы в `assets/CREDITS.md`.
+
+## Как проверять
+- Синтаксис: `for f in js/*.js tools/*.js; do node --check "$f"; done`
+- Карты: `node tools/check-maps.js`
+- ИИ против ИИ: `node tools/sim.js --runs 10` (без зависаний; поражения синих нормальны, за них тоже играет ИИ)
+- Игра: `node tools/serve.js` и http://localhost:5173 (в превью конфигурация `empires` из `.claude/launch.json`)

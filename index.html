@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Empires: Хроники Эльдора</title>
+  <meta name="description" content="Пошаговая тактическая стратегия в духе Ancient Empires 2 прямо в браузере.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Титульный экран -->
+  <section id="screen-title" class="screen">
+    <div class="title-box">
+      <h1>Empires</h1>
+      <div class="subtitle">Хроники Эльдора</div>
+      <div id="title-actions" class="menu-col"><p class="muted">Загрузка…</p></div>
+      <div class="credits">Графика: Kenney (CC0)</div>
+    </div>
+  </section>
+
+  <!-- Экран партии -->
+  <section id="screen-game" class="screen" hidden>
+    <header id="hud">
+      <div id="hud-turn"></div>
+      <div id="hud-gold"></div>
+      <div id="hud-units" class="hide-narrow"></div>
+      <div class="hud-spacer"></div>
+      <button id="btn-zoom-out" class="icon secondary hide-narrow" title="Отдалить">−</button>
+      <button id="btn-zoom-in" class="icon secondary hide-narrow" title="Приблизить">+</button>
+      <button id="btn-menu" class="secondary">Меню</button>
+      <button id="btn-end">Конец хода</button>
+    </header>
+    <div id="map-wrap">
+      <canvas id="map"></canvas>
+      <div id="hint" hidden></div>
+    </div>
+    <aside id="info"><div class="terr muted">Нажмите на клетку или воина</div></aside>
+    <div id="popup" class="popup" hidden></div>
+    <div id="forecast" class="popup forecast" hidden></div>
+    <div id="banner" hidden></div>
+    <div id="dialog" hidden></div>
+  </section>
+
+  <div id="modal-root" hidden></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/rules.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/campaign.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
