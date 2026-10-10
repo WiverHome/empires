@@ -72,10 +72,12 @@ button.secondary small { color: var(--muted); }
 #btn-end.pulse { animation: pulse 1s infinite; }
 @keyframes pulse { 50% { filter: brightness(1.25); box-shadow: 0 3px 0 #3f2631, 0 0 14px rgba(242,193,78,.8); } }
 
-#info {
-  flex: none; height: 92px; overflow: hidden; z-index: 4; padding: 8px 12px; pointer-events: none;
+#bottom {
+  flex: none; display: flex; align-items: stretch; height: 92px; z-index: 4;
   background: rgba(42,34,51,.98); border-top: 2px solid #3f2631;
 }
+#info { flex: 1; min-width: 0; overflow: hidden; padding: 8px 12px; pointer-events: none; }
+#btn-end { flex: none; align-self: center; margin: 0 10px 3px 0; min-width: 84px; min-height: 56px; line-height: 1.15; }
 #info .terr { font-size: 13px; color: var(--muted); }
 #info .terr b { color: var(--text); }
 #info .terr span { margin-left: 6px; }
@@ -161,6 +163,36 @@ button.secondary small { color: var(--muted); }
 .mission .m-body small { font-weight: 400; }
 .mission .m-done { color: var(--good); font-size: 20px; }
 
+.seg { display: flex; gap: 6px; flex: 1; }
+.seg button { flex: 1; padding: 7px 4px; text-align: center; }
+.seg.maps { margin-bottom: 6px; }
+.seg.maps button small { font-weight: 400; }
+.sk-desc { font-size: 13px; margin: 0 0 10px; min-height: 18px; }
+.side-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.side-name { width: 70px; font-weight: 700; font-size: 14px; }
+.side-row .chip { margin-right: 0; flex: none; }
+
+.seg.maps { flex-wrap: wrap; }
+.seg.maps button { flex: 1 1 30%; }
+.seg.ed-tools { margin-bottom: 6px; }
+.seg.ed-tools button { padding: 5px 4px; font-size: 13px; }
+
+/* ---------- Редактор карт ---------- */
+.modal.editor { display: flex; flex-direction: column; align-items: center; width: min(520px, 100%); overflow: hidden; }
+.modal.editor h2 { align-self: flex-start; }
+.ed-canvas { image-rendering: pixelated; touch-action: none; border: 2px solid #3f2631; border-radius: 4px; display: block; max-width: 100%; }
+.ed-brushes { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin: 8px 0 6px; width: 100%; }
+.ed-brush { padding: 2px; display: flex; justify-content: center; background: var(--panel-2); border-color: var(--line); box-shadow: 0 2px 0 #120e17; }
+.ed-brush.on { border-color: var(--accent); background: #4a3a63; }
+.ed-brush canvas { width: 28px; height: 28px; image-rendering: pixelated; }
+.ed-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; font-size: 13px; margin-bottom: 6px; flex-wrap: wrap; }
+.ed-brush-name { flex: 1 1 100%; }
+.ed-size { display: flex; align-items: center; gap: 5px; }
+.ed-size button.icon { width: 28px; padding: 2px 0; }
+.ed-title { width: 100%; box-sizing: border-box; font: inherit; padding: 6px 8px; background: var(--panel-2); color: var(--text); border: 2px solid var(--line); border-radius: var(--radius); }
+.ed-err { margin: 6px 0 0; align-self: flex-start; }
+.modal.editor .modal-actions { margin-top: 8px; width: 100%; }
+
 .rules { padding-left: 20px; margin: 0 0 12px; }
 .rules li { margin-bottom: 6px; }
 .table-wrap { overflow-x: auto; }
@@ -177,7 +209,9 @@ table img { width: 36px; height: 36px; image-rendering: pixelated; }
   .hide-narrow { display: none; }
   button { padding: 7px 10px; }
   button.icon { width: 32px; }
-  #info { height: 84px; padding: 6px 10px; }
+  #bottom { height: 84px; }
+  #info { padding: 6px 10px; }
+  #btn-end { min-width: 76px; margin-right: 8px; }
   #info .stats { gap: 2px 10px; font-size: 12px; }
   #info .desc { display: none; }
   .modal { padding: 14px; }

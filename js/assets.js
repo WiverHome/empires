@@ -153,6 +153,26 @@ function drawCastle(g, ox, oy) {
   px(g, PAL.stoneDark, ox + 7, oy + 12, 2, 1);
 }
 
+function drawShallow(g, ox, oy, frame, x, y) {
+  px(g, '#5ab4ea', ox, oy, 16, 16);
+  // песчаные отмели
+  const v = hash2(x * 7 + 3, y * 11 + 5);
+  const spots = v < 0.5 ? [[2, 3, 5, 3], [9, 10, 4, 3]] : [[8, 2, 5, 3], [3, 11, 5, 2]];
+  for (const [sx, sy, w, h] of spots) { px(g, '#d9c48a', ox + sx, oy + sy, w, h); px(g, '#bfa86e', ox + sx, oy + sy + h - 1, w, 1); }
+  const waves = frame ? [[1, 7], [11, 6], [6, 14]] : [[3, 8], [12, 7], [7, 13]];
+  for (const [wx, wy] of waves) px(g, PAL.foam, ox + wx, oy + wy, 3, 1);
+}
+
+function drawRuins(g, ox, oy) {
+  // обломки стен и камни на месте деревни
+  px(g, PAL.outline, ox + 2, oy + 9, 5, 6); px(g, PAL.dirtDark, ox + 3, oy + 10, 3, 4);
+  px(g, PAL.outline, ox + 9, oy + 11, 6, 4); px(g, PAL.dirtDark, ox + 10, oy + 12, 4, 2);
+  px(g, PAL.outline, ox + 2, oy + 6, 2, 3); px(g, PAL.dirt, ox + 3, oy + 7, 1, 2);
+  px(g, PAL.stoneMid, ox + 7, oy + 13, 2, 2); px(g, PAL.stoneDark, ox + 6, oy + 5, 2, 1);
+  px(g, PAL.roof, ox + 10, oy + 8, 3, 1); px(g, PAL.outline, ox + 10, oy + 9, 3, 1);
+  px(g, '#4a4a4a', ox + 5, oy + 3, 1, 3); px(g, '#6a6a6a', ox + 6, oy + 2, 1, 2);
+}
+
 function drawGrass(g, ox, oy, x, y) {
   px(g, PAL.grass, ox, oy, 16, 16);
   const v = hash2(x, y);
@@ -170,15 +190,17 @@ function renderTerrainLayer(st, frame) {
   const [c, g] = makeCanvas(st.w * TILE, st.h * TILE);
   const T = (x, y) => inBounds(st, x, y) ? st.terrain[y][x] : null;
   const isWater = (x, y) => T(x, y) === 'water';
+  const wet = t => t === 'water' || t === 'bridge' || t === 'shallow';
   const linky = t => t === 'road' || t === 'bridge' || t === 'village' || t === 'castle';
   for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
     const t = T(x, y), ox = x * TILE, oy = y * TILE;
+    if (t === 'shallow') { drawShallow(g, ox, oy, frame, x, y); continue; }
     if (t === 'water' || t === 'bridge') {
       drawWater(g, ox, oy, frame, {
-        up: T(x, y - 1) && !['water', 'bridge'].includes(T(x, y - 1)),
-        down: T(x, y + 1) && !['water', 'bridge'].includes(T(x, y + 1)),
-        left: T(x - 1, y) && !['water', 'bridge'].includes(T(x - 1, y)),
-        right: T(x + 1, y) && !['water', 'bridge'].includes(T(x + 1, y)),
+        up: T(x, y - 1) && !wet(T(x, y - 1)),
+        down: T(x, y + 1) && !wet(T(x, y + 1)),
+        left: T(x - 1, y) && !wet(T(x - 1, y)),
+        right: T(x + 1, y) && !wet(T(x + 1, y)),
       });
       if (t === 'bridge') drawBridge(g, ox, oy, (T(x - 1, y) && !isWater(x - 1, y)) || (T(x + 1, y) && !isWater(x + 1, y)));
       continue;
@@ -193,6 +215,7 @@ function renderTerrainLayer(st, frame) {
     else if (t === 'mountain') drawMountain(g, ox, oy, hash2(x, y));
     else if (t === 'village') drawHouse(g, ox, oy);
     else if (t === 'castle') drawCastle(g, ox, oy);
+    else if (t === 'ruins') drawRuins(g, ox, oy);
   }
   return c;
 }
@@ -210,6 +233,29 @@ function tilePixels(sheet, idx) {
   return g.getImageData(0, 0, TILE, TILE).data;
 }
 
+// Процедурные фигурки 16x16 для юнитов, которых нет в листах
+function procPixels(kind) {
+  const [c, g] = makeCanvas(TILE, TILE);
+  if (kind === 'wisp') {
+    // светящийся огонёк с глазками и искрами
+    px(g, PAL.outline, 5, 3, 6, 10); px(g, PAL.outline, 4, 4, 8, 8); px(g, PAL.outline, 3, 6, 10, 4);
+    px(g, '#ffb53a', 5, 4, 6, 8); px(g, '#ffb53a', 4, 6, 8, 4);
+    px(g, '#ffe27a', 5, 5, 6, 6); px(g, '#fff7c8', 6, 6, 3, 3);
+    px(g, PAL.outline, 6, 8, 1, 2); px(g, PAL.outline, 9, 8, 1, 2);
+    px(g, PAL.outline, 7, 1, 2, 2); px(g, '#ffe27a', 7, 2, 1, 1);
+    px(g, '#fff7c8', 2, 3, 1, 1); px(g, '#fff7c8', 13, 5, 1, 1); px(g, '#ffe27a', 12, 12, 1, 1); px(g, '#ffe27a', 2, 12, 1, 1);
+  } else if (kind === 'crystal') {
+    // кристалл на каменной подставке
+    px(g, PAL.outline, 3, 12, 10, 3); px(g, PAL.stoneMid, 4, 13, 8, 1);
+    const rows = [[7, 2], [6, 4], [5, 6], [5, 6], [5, 6], [5, 6], [6, 4], [7, 2]];
+    rows.forEach(([x0, w], i) => { px(g, PAL.outline, x0 - 1, 3 + i, w + 2, 1); });
+    px(g, PAL.outline, 7, 2, 2, 1);
+    rows.forEach(([x0, w], i) => { px(g, '#3fd6c6', x0, 3 + i, w, 1); px(g, '#a8fff4', x0, 3 + i, Math.max(1, w / 2 - 1), 1); });
+    px(g, '#ffffff', 6, 5, 1, 2);
+  }
+  return g.getImageData(0, 0, TILE, TILE).data;
+}
+
 function composeUnit(type) {
   const def = UNIT_DEFS[type];
   const N = SPR_GRID, comp = new Uint8ClampedArray(N * N * 4);
@@ -222,7 +268,7 @@ function composeUnit(type) {
       comp.set([src[i], src[i + 1], src[i + 2], 255], (y * N + x) * 4);
     }
   };
-  const body = tilePixels(def.sheet || 'dungeon', def.sprite);
+  const body = def.proc ? procPixels(def.proc) : tilePixels(def.sheet || 'dungeon', def.sprite);
   for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) put(body, x, y, 3, 0, 0);
   if (def.weapon) {
     const w = def.weapon, src = tilePixels(w.sheet, w.idx);

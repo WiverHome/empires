@@ -4,7 +4,7 @@
 /* ---------- Сохранения (localStorage) ---------- */
 const SAVE = {
   KEY: 'empires.save.v1',
-  data: { unlocked: 1, heroLevel: 0, completed: [], current: null, prefs: {} },
+  data: { unlocked: 1, heroLevel: 0, completed: [], current: null, prefs: {}, maps: [] },
 
   load() {
     try {
@@ -12,6 +12,14 @@ const SAVE = {
       if (raw) this.data = Object.assign(this.data, JSON.parse(raw));
     } catch (e) { /* приватный режим или битое сохранение: играем без него */ }
     this.data.prefs = this.data.prefs || {};
+    this.data.maps = Array.isArray(this.data.maps) ? this.data.maps : [];
+    CUSTOM_MAPS.length = 0;
+    CUSTOM_MAPS.push(...this.data.maps);
+    // в кампании могли появиться новые миссии: открыть следующую за последней пройденной
+    for (const id of this.data.completed) {
+      const idx = MISSIONS.findIndex(m => m.id === id);
+      if (idx >= 0) this.data.unlocked = Math.max(this.data.unlocked, Math.min(MISSIONS.length, idx + 2));
+    }
   },
   write() {
     try { localStorage.setItem(this.KEY, JSON.stringify(this.data)); } catch (e) { /* нет места или запрещено */ }
@@ -53,10 +61,24 @@ function renderTitle() {
   const nb = el('button', cur ? 'secondary' : '', SAVE.data.completed.length ? 'Кампания' : 'Новая кампания');
   nb.onclick = () => { SND.play('click'); renderMissions(); };
   box.appendChild(nb);
+  const sb = el('button', 'secondary', 'Схватка');
+  sb.onclick = () => { SND.play('click'); renderSkirmishSetup(); };
+  box.appendChild(sb);
+  const db = el('button', 'secondary', difficultyLabel());
+  db.onclick = () => {
+    SND.play('click');
+    const keys = Object.keys(DIFFICULTY);
+    SAVE.setPref('difficulty', keys[(keys.indexOf(SAVE.data.prefs.difficulty || 'normal') + 1) % keys.length]);
+    db.innerHTML = difficultyLabel();
+  };
+  box.appendChild(db);
   const rb = el('button', 'secondary', 'Как играть');
   rb.onclick = () => { SND.play('click'); showRules(); };
   box.appendChild(rb);
 }
+
+// Сложность действует на новые партии: доход и ошибки ИИ
+const difficultyLabel = () => `Сложность: ${DIFFICULTY[SAVE.data.prefs.difficulty || 'normal'].name}`;
 
 function renderMissions() {
   const list = MISSIONS.map((m, i) => {
@@ -79,6 +101,70 @@ function renderMissions() {
   m.querySelector('[data-close]').onclick = closeModal;
 }
 
+const escHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const SIDE_KINDS ={ h: 'Игрок', a: 'ИИ', n: 'Нет' };
+
+// Настройка схватки: карта, кто за какую сторону, стартовое золото. Выбор запоминается.
+function renderSkirmishSetup() {
+  const pref = SAVE.data.prefs.skirmish || {};
+  const cfg = { map: pref.map || SKIRMISH_MAPS[0].id, gold: pref.gold || 1000, sides: pref.sides || {}, fog: !!pref.fog };
+  const mapOf = () => skirmishMapById(cfg.map) || SKIRMISH_MAPS[0];
+  const sidesStr = () => mapOf().slots.map((s, i) => cfg.sides[s.team] || (i === 0 ? 'h' : 'a')).join('');
+
+  const draw = () => {
+    const sm = mapOf(), sides = sidesStr();
+    const active = [...sides].filter(c => c !== 'n').length;
+    const ok = active >= 2 && sides.includes('h');
+    const maps = [...SKIRMISH_MAPS, ...CUSTOM_MAPS].map(m => `<button class="${m.id === sm.id ? '' : 'secondary'}" data-map="${m.id}">${escHtml(m.title)}<small>${m.custom ? 'своя, ' : ''}${m.slots.length === 2 ? 'двое' : m.slots.length === 3 ? 'трое' : 'до четырёх'}</small></button>`).join('');
+    const slots = sm.slots.map((s, i) => `<div class="side-row"><span class="chip" style="background:${TEAMS[s.team].color}"></span>
+      <span class="side-name">${TEAMS[s.team].label}</span>
+      <div class="seg">${Object.keys(SIDE_KINDS).map(k => `<button class="${sides[i] === k ? '' : 'secondary'}" data-team="${s.team}" data-kind="${k}">${SIDE_KINDS[k]}</button>`).join('')}</div></div>`).join('');
+    const golds = SKIRMISH_GOLD.map(g => `<button class="${g === cfg.gold ? '' : 'secondary'}" data-gold="${g}"><span class="coin"></span>${g}</button>`).join('');
+    const m = openModal(`<h2>Схватка</h2>
+      <div class="seg maps">${maps}</div>
+      <div class="seg ed-tools"><button class="secondary" data-new-map>Новая карта</button>${sm.custom ? '<button class="secondary" data-edit-map>Изменить</button>' : ''}</div>
+      <p class="muted sk-desc">${escHtml(sm.desc)}</p>
+      ${slots}
+      <div class="side-row"><span class="side-name">Золото</span><div class="seg">${golds}</div></div>
+      <div class="side-row"><span class="side-name">Туман</span><div class="seg"><button class="${cfg.fog ? 'secondary' : ''}" data-fog="0">Нет</button><button class="${cfg.fog ? '' : 'secondary'}" data-fog="1">Есть</button></div></div>
+      ${!ok ? '<p class="warn">Нужно хотя бы две стороны и один игрок.</p>' : SAVE.data.current ? '<p class="warn">Новая партия заменит текущее сохранение.</p>' : ''}
+      <div class="modal-actions"><button class="secondary" data-close>Назад</button><button data-start ${ok ? '' : 'disabled'}>В бой</button></div>`, 'skirmish');
+    m.querySelectorAll('[data-map]').forEach(b => b.onclick = () => { SND.play('click'); cfg.map = b.dataset.map; draw(); });
+    const edit = existing => {
+      SND.play('click');
+      openMapEditor(existing, res => {
+        if (res && res.map) {
+          const i = SAVE.data.maps.findIndex(x => x.id === res.map.id);
+          if (i >= 0) SAVE.data.maps[i] = res.map; else SAVE.data.maps.push(res.map);
+          cfg.map = res.map.id;
+        } else if (res && res.deleted) {
+          SAVE.data.maps = SAVE.data.maps.filter(x => x.id !== res.deleted);
+          if (cfg.map === res.deleted) cfg.map = SKIRMISH_MAPS[0].id;
+        }
+        CUSTOM_MAPS.length = 0;
+        CUSTOM_MAPS.push(...SAVE.data.maps);
+        SAVE.write();
+        draw();
+      });
+    };
+    m.querySelector('[data-new-map]').onclick = () => edit(null);
+    const eb = m.querySelector('[data-edit-map]');
+    if (eb) eb.onclick = () => edit(sm);
+    m.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { SND.play('click'); cfg.sides[b.dataset.team] = b.dataset.kind; draw(); });
+    m.querySelectorAll('[data-gold]').forEach(b => b.onclick = () => { SND.play('click'); cfg.gold = +b.dataset.gold; draw(); });
+    m.querySelectorAll('[data-fog]').forEach(b => b.onclick = () => { SND.play('click'); cfg.fog = b.dataset.fog === '1'; draw(); });
+    m.querySelector('[data-close]').onclick = closeModal;
+    m.querySelector('[data-start]').onclick = () => {
+      SND.play('click');
+      SAVE.setPref('skirmish', cfg);
+      closeModal();
+      SAVE.clearCurrent();
+      startMission(skirmishId(sm.id, cfg.gold, sidesStr(), cfg.fog));
+    };
+  };
+  draw();
+}
+
 function showRules() {
   const rows = BUY_LIST.map(t => {
     const d = UNIT_DEFS[t];
@@ -96,6 +182,11 @@ function showRules() {
       <li>В свободном своём замке можно нанимать воинов. Нанятый воин ходит со следующего хода.</li>
       <li>За урон воины получают опыт. Уровень даёт +${BAL.levelAtk} к атаке и +${BAL.levelDef} к защите.</li>
       <li>Павшие оставляют могилы на ${BAL.graveTurns} хода. Чародей может поднять из могилы призрака.</li>
+      <li>Паук отравляет: −${BAL.poisonAtk} к атаке и −${BAL.poisonDef} к защите на ${BAL.poisonTurns} хода. Яд сразу снимает целительница рядом или своё здание.</li>
+      <li>Огонёк даёт соседним союзникам +${BAL.wispAtk} к атаке и особенно силён против нежити.</li>
+      <li>Водяной плавает по воде и мелководью и получает там +${BAL.waterDef} к защите.</li>
+      <li>Катапульта, не двигаясь, может разрушить чужую деревню. Руины отстраивает мечник или командир.</li>
+      <li>В тумане войны видно только то, что рядом с вашими воинами и зданиями.</li>
       <li>Управление: перетаскивание - двигать карту, колесо или кнопки ± - масштаб, Esc или правая кнопка - отмена, E - конец хода.</li>
     </ul>
     <h3>Воины</h3><div class="table-wrap"><table class="units"><tr><th></th><th></th><th>Цена</th><th>Атака</th><th>Защ.</th><th>Ход</th><th>Дальн.</th></tr>${rows}</table></div>

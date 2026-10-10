@@ -8,7 +8,8 @@ const SPEAKERS = {
   hero:   { name: 'Ардан',     sprite: 97,  team: 'blue' },
   lira:   { name: 'Лира',      sprite: 99,  team: 'blue' },
   scout:  { name: 'Разведчик', sprite: 98,  team: 'blue' },
-  elder:  { name: 'Староста',  sprite: 100, team: 'blue' },
+  elder:  { name: 'Староста',  sprite: 86,  team: 'blue' },
+  witch:  { name: 'Ильва',     sprite: 100, team: 'red' },
   bandit: { name: 'Разбойник', sprite: 85,  team: 'red' },
   bran:   { name: 'Бран',      sprite: 87,  team: 'red' },
   morven: { name: 'Морвен',    sprite: 111, team: 'red' },
@@ -288,12 +289,277 @@ const MISSIONS = [
       { who: 'hero', text: 'Возвращаемся домой. Королевство снова в безопасности.' },
     ],
   },
+
+  // ===== Глава 2: болотная ведьма =====
+  {
+    id: 'm5',
+    title: 'Болотная тропа',
+    goal: 'Разбейте всех врагов на болоте. Ардан должен выжить.',
+    map: [
+      'ff.hh.v.hff',
+      'f..,,,,..vf',
+      '.ss..s..ss.',
+      's~s.ss.s~ss',
+      '.ss.s~s.ss.',
+      '..,.ssf.,..',
+      '.f,,..,,h..',
+      '.sss.f.ss..',
+      's~s..,..sss',
+      '.s..f.,h...',
+      '..,,,,,,.v.',
+      'f..h.,.v..f',
+      'hf.......ff',
+    ],
+    teams: { blue: { gold: 0 }, red: { gold: 0, ai: true } },
+    buildings: [{ x: 6, y: 0, team: 'red' }, { x: 9, y: 1, team: 'red' }],
+    units: [
+      { type: 'hero', team: 'blue', x: 5, y: 12, commander: true },
+      { type: 'healer', team: 'blue', x: 4, y: 12 },
+      { type: 'soldier', team: 'blue', x: 3, y: 11 },
+      { type: 'soldier', team: 'blue', x: 7, y: 11 },
+      { type: 'archer', team: 'blue', x: 6, y: 12 },
+      { type: 'spider', team: 'red', x: 3, y: 3 },
+      { type: 'spider', team: 'red', x: 7, y: 3 },
+      { type: 'spider', team: 'red', x: 5, y: 6, hold: true },
+      { type: 'soldier', team: 'red', x: 2, y: 1 },
+      { type: 'soldier', team: 'red', x: 6, y: 0, hold: true },
+      { type: 'archer', team: 'red', x: 9, y: 1, hold: true },
+      { type: 'spider', team: 'red', x: 8, y: 5 },
+      { type: 'archer', team: 'red', x: 3, y: 1 },
+    ],
+    intro: [
+      { who: 'hero', text: 'Морвен пал, но с юга, из болот, тянет гнилью. Земля вокруг мёртвая.' },
+      { who: 'lira', text: 'Это работа болотной ведьмы Ильвы. Говорят, её нельзя убить обычной сталью.' },
+      { who: 'scout', text: 'Мелководье тяжело для пехоты: каждая клетка стоит три хода. Идите по тропам.' },
+    ],
+    triggers: [
+      {
+        when: onEvent(e => e.type === 'poison'),
+        say: [{ who: 'lira', text: 'Яд пауков! Отравленный теряет силу и защиту. Подойдите ко мне или встаньте на свою деревню, и яд сойдёт.' }],
+      },
+      {
+        when: onTurn(3),
+        say: [{ who: 'hero', text: 'Что за свет над тропой?' },
+              { who: 'lira', text: 'Огонёк! Он с нами. Соседние союзники рядом с ним бьют сильнее, а нежить он жжёт.' }],
+        spawn: [{ type: 'wisp', team: 'blue', x: 5, y: 12 }],
+      },
+    ],
+    outro: [
+      { who: 'bandit', text: 'Ильва платит нам болотным золотом... её логово в самом сердце топи.' },
+      { who: 'hero', text: 'Тогда идём в топь. Лира, держись рядом.' },
+    ],
+  },
+
+  {
+    id: 'm6',
+    title: 'Кристалл Света',
+    goal: 'Доведите Кристалл до алтаря (золотая рамка) за 14 ходов. Если Кристалл погибнет, миссия провалена.',
+    turnLimit: 14,
+    map: [
+      'MMh.,r,.hMM',
+      'Mf..,,,..fM',
+      'h..f.,.f..h',
+      '.f.,,,,,.f.',
+      '..,..f..,..',
+      '.h,.....,h.',
+      '~~~=~~~=~~~',
+      '~~~=~~~=~~~',
+      '.f,.....,f.',
+      '..,,.h.,,..',
+      '.h..,,,..h.',
+      'f..v.,.v..f',
+      '..,,,,,,,..',
+      'hh...C...hh',
+      'MM.......MM',
+    ],
+    marks: [{ x: 5, y: 0 }],
+    teams: {
+      blue: { gold: 300 },
+      red: { gold: 200, ai: true, buy: ['spider', 'archer', 'soldier'] },
+    },
+    buildings: [{ x: 5, y: 13, team: 'blue' }],
+    units: [
+      { type: 'hero', team: 'blue', x: 5, y: 12, commander: true },
+      { type: 'crystal', team: 'blue', x: 5, y: 11, goal: { x: 5, y: 0 } },
+      { type: 'healer', team: 'blue', x: 4, y: 12 },
+      { type: 'soldier', team: 'blue', x: 3, y: 11 },
+      { type: 'soldier', team: 'blue', x: 7, y: 11 },
+      { type: 'archer', team: 'blue', x: 6, y: 12 },
+      { type: 'mage', team: 'blue', x: 4, y: 11 },
+      { type: 'spider', team: 'red', x: 3, y: 5 },
+      { type: 'spider', team: 'red', x: 7, y: 5 },
+      { type: 'soldier', team: 'red', x: 2, y: 3 },
+      { type: 'soldier', team: 'red', x: 8, y: 3 },
+      { type: 'archer', team: 'red', x: 4, y: 1, hold: true },
+      { type: 'archer', team: 'red', x: 6, y: 1, hold: true },
+    ],
+    intro: [
+      { who: 'elder', text: 'Рыцарь, в нашем храме хранился Кристалл Света. Только его сияние очищает топь от яда.' },
+      { who: 'elder', text: 'Отнесите его на древний алтарь на севере. Он отмечен золотой рамкой.' },
+      { who: 'lira', text: 'Кристалл не сражается и ходит медленно. Если его разобьют, надежды не останется. Прикрывайте его!' },
+    ],
+    triggers: [
+      {
+        when: onTurn(6),
+        say: [{ who: 'scout', text: 'Впереди два моста через реку. Враги ждут за ними. Не торопите Кристалл вперёд бойцов.' }],
+      },
+    ],
+    check(st) {
+      const c = st.units.find(u => u.type === 'crystal' && u.team === 'blue');
+      if (c && c.x === 5 && c.y === 0) return 'win';
+      if (st.flags.crystalLost) return 'lose';
+      if (st.turn > 14 && st.active === 'blue') return 'lose';
+      return null;
+    },
+    outro: [
+      { who: 'elder', text: 'Свет вернулся! Смотрите, топь светлеет, а чары слабеют.' },
+      { who: 'lira', text: 'Ильва теперь знает, что мы идём. Дальше её путь лежит через устье реки.' },
+    ],
+  },
+
+  {
+    id: 'm7',
+    title: 'Устье реки',
+    goal: 'Захватите замок красных или разбейте их войско. В вашем замке можно нанимать воинов.',
+    map: [
+      'hh.,C,..hhM',
+      '.v,,,,,,.v.',
+      'ss.f..f.sss',
+      '~ss..r.ss~~',
+      '~~s.ff.s~~~',
+      '~~ss...ss~~',
+      '~~~s.r.s~~~',
+      '~~ss...ss~~',
+      'rss..h..ss~',
+      '.ss.,,,.ss.',
+      '.v.f,.,f.v.',
+      '..,,,.,,...',
+      'f..v...v..f',
+      'hh..C....hh',
+      'MMf.....fMM',
+    ],
+    teams: {
+      blue: { gold: 600 },
+      red: { gold: 200, ai: true, buy: ['undine', 'catapult', 'soldier', 'archer'] },
+    },
+    buildings: [
+      { x: 4, y: 13, team: 'blue' }, { x: 3, y: 12, team: 'blue' }, { x: 7, y: 12, team: 'blue' },
+      { x: 1, y: 10, team: 'blue' }, { x: 9, y: 10, team: 'blue' },
+      { x: 4, y: 0, team: 'red' }, { x: 1, y: 1, team: 'red' }, { x: 9, y: 1, team: 'red' },
+    ],
+    units: [
+      { type: 'hero', team: 'blue', x: 4, y: 12, commander: true },
+      { type: 'healer', team: 'blue', x: 5, y: 12 },
+      { type: 'soldier', team: 'blue', x: 3, y: 11 },
+      { type: 'soldier', team: 'blue', x: 6, y: 11 },
+      { type: 'archer', team: 'blue', x: 5, y: 11 },
+      { type: 'warlord', team: 'red', x: 4, y: 1, hold: true },
+      { type: 'undine', team: 'red', x: 2, y: 3 },
+      { type: 'undine', team: 'red', x: 7, y: 3, hold: true },
+      { type: 'catapult', team: 'red', x: 5, y: 2, hold: true },
+      { type: 'archer', team: 'red', x: 6, y: 2, hold: true },
+    ],
+    intro: [
+      { who: 'scout', text: 'В устье реки хозяйничают слуги Ильвы. У них водяные: те плавают по воде и мелководью и там крепки.' },
+      { who: 'hero', text: 'Нам тоже нужны водяные. Наймём их в замке, они пройдут там, где пехота увязнет.' },
+      { who: 'lira', text: 'Осторожно: красные катапульты разрушают деревни, а на их месте остаются руины.' },
+    ],
+    triggers: [
+      {
+        when: onEvent(e => e.type === 'destroy'),
+        say: [{ who: 'scout', text: 'Деревню разрушили! Мечник или Ардан могут встать на руины и выбрать «Отстроить»: деревня снова станет нашей.' }],
+      },
+      {
+        when: onTurn(5),
+        say: [{ who: 'hero', text: 'Руины тоже дают защиту. Можно укрыться за их стенами.' }],
+      },
+    ],
+    check(st) {
+      if (ownerAt(st, 4, 0) === 'blue') return 'win';
+      return null;
+    },
+    outro: [
+      { who: 'hero', text: 'Устье наше. Дорога к топям открыта.' },
+      { who: 'lira', text: 'Ильва ждёт нас в своём логове. Там нас ждёт последний бой.' },
+    ],
+  },
+
+  {
+    id: 'm8',
+    title: 'Логово Ильвы',
+    goal: 'Победите ведьму Ильву. Ардан должен выжить.',
+    map: [
+      'ffh..C..hff',
+      'fs.,,,,,.sf',
+      's~s..f..s~s',
+      '~~ss.,.ss~~',
+      's~s.f.f.s~s',
+      '.ss.,,,.ss.',
+      '..r.,.,.r..',
+      'f.v.,.,.v.f',
+      '.h.,,.,,.h.',
+      '..f.....f..',
+      'h..v...v..h',
+      'hh...C...hh',
+      'MM.......MM',
+    ],
+    teams: {
+      blue: { gold: 1000 },
+      red: { gold: 300, ai: true, buy: ['spider', 'undine', 'golem', 'demon'] },
+    },
+    buildings: [
+      { x: 5, y: 11, team: 'blue' }, { x: 3, y: 10, team: 'blue' }, { x: 7, y: 10, team: 'blue' },
+      { x: 5, y: 0, team: 'red' },
+    ],
+    units: [
+      { type: 'hero', team: 'blue', x: 5, y: 10, commander: true },
+      { type: 'healer', team: 'blue', x: 4, y: 10 },
+      { type: 'wisp', team: 'blue', x: 6, y: 10 },
+      { type: 'soldier', team: 'blue', x: 4, y: 9 },
+      { type: 'soldier', team: 'blue', x: 6, y: 9 },
+      { type: 'archer', team: 'blue', x: 5, y: 9 },
+      { type: 'witch', team: 'red', x: 5, y: 1, hold: true, tag: 'boss' },
+      { type: 'golem', team: 'red', x: 4, y: 4, hold: true },
+      { type: 'spider', team: 'red', x: 3, y: 5 },
+      { type: 'spider', team: 'red', x: 7, y: 5 },
+      { type: 'golem', team: 'red', x: 6, y: 4, hold: true },
+      { type: 'undine', team: 'red', x: 1, y: 3 },
+      { type: 'undine', team: 'red', x: 9, y: 3 },
+      { type: 'archer', team: 'red', x: 5, y: 3, hold: true },
+    ],
+    intro: [
+      { who: 'lira', text: 'Вот и логово. Гниль идёт отсюда, из самого сердца топи.' },
+      { who: 'witch', text: 'Рыцарь и его целительница. Мои пауки давно ждут гостей. Топь вас не отпустит.' },
+      { who: 'hero', text: 'Держитесь вместе: яд снимает Лира или родная деревня. Огонёк усилит тех, кто рядом.' },
+    ],
+    triggers: [
+      {
+        when: onEvent(e => e.type === 'hit' && e.toTag === 'boss'),
+        say: [{ who: 'witch', text: 'Ты посмел ранить меня?! Топь, подними своих детей!' }],
+      },
+      {
+        when: onTurn(7, 'red'),
+        say: [{ who: 'witch', text: 'Из глубины, ко мне!' }],
+        spawn: [{ type: 'spider', team: 'red', x: 4, y: 1 }, { type: 'spider', team: 'red', x: 6, y: 1 }],
+      },
+    ],
+    check(st) {
+      if (st.flags.bossDead) return 'win';
+      return null;
+    },
+    outro: [
+      { who: 'witch', text: 'Топь... вернётся... она всегда возвращается...' },
+      { who: 'lira', text: 'Воздух чист. Яд уходит из земли.' },
+      { who: 'hero', text: 'Эта земля свободна. Спасибо вам, друзья. Королевство в безопасности, на этот раз по-настоящему.' },
+    ],
+  },
 ];
 
-const missionById = id => MISSIONS.find(m => m.id === id);
+const missionById = id => isSkirmishId(id) ? skirmishMission(id) : MISSIONS.find(m => m.id === id);
 
 // Победа/поражение: общие правила кампании + check() миссии
 function evaluateOutcome(st, mission) {
+  if (mission.skirmish) return skirmishOutcome(st);
   if (st.teams.blue.commanderDead) return 'lose';
   const own = mission.check && mission.check(st);
   if (own) return own;

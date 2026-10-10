@@ -16,7 +16,21 @@ const GAME = {
 const $ = sel => document.querySelector(sel);
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const selUnit = () => GAME.sel ? unitById(GAME.st, GAME.sel) : null;
+// Юнит на клетке, если игрок его видит (туман войны прячет чужих вне обзора)
+function seenUnitAt(x, y) {
+  const u = unitAt(GAME.st, x, y);
+  if (!u || !GAME.st.fog || u.team === viewTeam()) return u;
+  return visibleTiles(GAME.st, viewTeam()).has(key(x, y)) ? u : null;
+}
+const seen = list => GAME.st.fog ? list.filter(t => seenUnitAt(t.x, t.y)) : list;
 const isHumanTurn = () => GAME.st && !GAME.st.teams[GAME.st.active].ai;
+const humanTeams = () => GAME.st.order.filter(t => !GAME.st.teams[t].ai);
+// Чью казну и отряд показывать: активного игрока, а в ход ИИ - последнего ходившего человека
+function viewTeam() {
+  const st = GAME.st;
+  if (!st.teams[st.active].ai) return st.active;
+  return GAME.lastHuman && st.teams[GAME.lastHuman] ? GAME.lastHuman : (humanTeams()[0] || st.order[0]);
+}
 
 /* ---------- Запуск миссии ---------- */
 async function startMission(id, resume) {
@@ -25,13 +39,18 @@ async function startMission(id, resume) {
   GAME.aiRunning = false;
   GAME.mission = mission;
   GAME.fired = resume ? resume.fired.slice() : [];
-  GAME.st = resume ? resume.state : createState(mission, { commanderLevel: SAVE.data.heroLevel || 0 });
+  GAME.st = resume ? resume.state : createState(mission, {
+    commanderLevel: mission.skirmish ? 0 : SAVE.data.heroLevel || 0,
+    difficulty: SAVE.data.prefs.difficulty || 'normal',
+  });
+  GAME.lastHuman = null;
   GAME.sel = null;
   GAME.mode = 'busy';
   showScreen('game');
   resizeView();
   setViewState(GAME.st);
-  const hero = commanderOf(GAME.st, 'blue');
+  VIEW.marks = mission.marks || null;
+  const hero = commanderOf(GAME.st, viewTeam());
   if (hero) centerOn(hero.x, hero.y);
   updateHud();
   if (resume) {
@@ -55,11 +74,27 @@ async function afterTurnStart(events) {
   await runTriggers({ phase: 'turn', events });
   if (await checkOutcome()) return;
   if (st.teams[st.active].ai) runAI();
-  else await startHumanTurn();
+  else {
+    if (humanTeams().length > 1) await passDevice();
+    await startHumanTurn();
+  }
+}
+
+// Игра вдвоём на одном устройстве: пауза, чтобы передать телефон
+function passDevice() {
+  const st = GAME.st, t = TEAMS[st.active];
+  VIEW.fogTeam = st.fog ? 'none' : null;    // с туманом не показывать карту прошлого игрока
+  return new Promise(resolve => {
+    const m = openModal(`<h2 style="color:${t.light}">Ход: ${teamName(st, st.active)}</h2>
+      <p class="muted">Передайте устройство игроку.</p>
+      <div class="modal-actions"><button data-go>Начать ход</button></div>`, 'result');
+    m.querySelector('[data-go]').onclick = () => { SND.play('click'); closeModal(); resolve(); };
+  });
 }
 
 async function startHumanTurn() {
   GAME.mode = 'idle';
+  GAME.lastHuman = GAME.st.active;
   SAVE.saveCurrent();
   updateHud();
   const hero = commanderOf(GAME.st, GAME.st.active);
@@ -100,8 +135,10 @@ async function checkOutcome() {
   SAVE.clearCurrent();
   if (res === 'win') {
     SND.play('win');
-    await showDialog(GAME.mission.outro);
-    SAVE.missionWon(GAME.mission.id, GAME.st);
+    if (!GAME.mission.skirmish) {
+      await showDialog(GAME.mission.outro);
+      SAVE.missionWon(GAME.mission.id, GAME.st);
+    }
   } else SND.play('lose');
   showResult(res);
   return true;
@@ -136,13 +173,14 @@ async function runAI() {
         continue;
       }
       const u = unitById(GAME.st, a.unit);
-      await ensureVisible(u.x, u.y);
+      const shown = !VIEW.vis || isVisible(u.x, u.y) || isVisible(a.to.x, a.to.y);
+      if (shown) await ensureVisible(u.x, u.y);
       if (!alive()) return;
       const reach = reachable(GAME.st, u);
       const path = pathTo(reach, a.to.x, a.to.y);
       VIEW.selected = u.id;
       actMove(GAME.st, u, a.to.x, a.to.y);
-      if (path.length > 1) { SND.play('move'); await animMove(u, path); }
+      if (path.length > 1 && shown) { SND.play('move'); await animMove(u, path); }
       if (!alive()) return;
       let ev = [];
       if (a.act === 'attack') {
@@ -153,6 +191,8 @@ async function runAI() {
         ev = actAttack(GAME.st, u, t);
       } else if (a.act === 'capture') ev = actCapture(GAME.st, u);
       else if (a.act === 'raise') ev = actRaise(GAME.st, u, graveAt(GAME.st, a.grave.x, a.grave.y));
+      else if (a.act === 'repair') ev = actRepair(GAME.st, u);
+      else if (a.act === 'destroy') ev = actDestroy(GAME.st, u, a.spot.x, a.spot.y);
       else ev = actWait(GAME.st, u);
       VIEW.selected = null;
       if (await afterAction(ev)) return;
@@ -183,7 +223,7 @@ function selectUnit(u) {
   const threat = threatTiles(GAME.st, u, GAME.reach);
   for (const k of GAME.reach.keys()) threat.delete(k);
   VIEW.hl.threat = [...threat];
-  const inRange = GAME.st.units.filter(t => isEnemy(t, u) && attackSpotFor(u, t));
+  const inRange = seen(GAME.st.units.filter(t => isEnemy(t, u) && attackSpotFor(u, t)));
   VIEW.hl.targets = inRange.length ? inRange : null;
   GAME.mode = 'selected';
   showInfo(u.x, u.y);
@@ -194,6 +234,7 @@ function selectUnit(u) {
 // меньше ответного урона, затем больше защиты местности, затем короче путь.
 function attackSpotFor(u, t) {
   const d = UNIT_DEFS[u.type];
+  if (d.noAttack) return null;
   let best = null;
   for (const n of GAME.reach.values()) {
     if (d.noMoveAttack && (n.x !== GAME.orig.x || n.y !== GAME.orig.y)) continue;
@@ -274,9 +315,9 @@ function undoMove() {
 
 function unitTargets(u) {
   const d = UNIT_DEFS[u.type];
-  if (d.noMoveAttack && (GAME.orig.x !== u.x || GAME.orig.y !== u.y)) return [];
+  if (d.noAttack || (d.noMoveAttack && (GAME.orig.x !== u.x || GAME.orig.y !== u.y))) return [];
   const [rMin, rMax] = d.range;
-  return GAME.st.units.filter(t => isEnemy(t, u) && dist(u.x, u.y, t.x, t.y) >= rMin && dist(u.x, u.y, t.x, t.y) <= rMax);
+  return seen(GAME.st.units.filter(t => isEnemy(t, u) && dist(u.x, u.y, t.x, t.y) >= rMin && dist(u.x, u.y, t.x, t.y) <= rMax));
 }
 
 function openActionMenu(u) {
@@ -286,6 +327,9 @@ function openActionMenu(u) {
   const targets = unitTargets(u);
   if (targets.length) opts.push(['Атаковать', () => startTargeting(u, targets)]);
   if (canCaptureAt(GAME.st, u)) opts.push(['Захватить', () => doAct(u, () => actCapture(GAME.st, u))]);
+  if (canRepairAt(GAME.st, u)) opts.push(['Отстроить', () => doAct(u, () => actRepair(GAME.st, u))]);
+  const ruinable = GAME.orig.x === u.x && GAME.orig.y === u.y ? destroyTargets(GAME.st, u) : [];
+  if (ruinable.length) opts.push(['Разрушить', () => startDestroying(u, ruinable)]);
   const graves = UNIT_DEFS[u.type].canRaise ? gravesNear(GAME.st, u.x, u.y) : [];
   if (graves.length && teamUnits(GAME.st, u.team).length < BAL.unitCap) opts.push(['Поднять мертвеца', () => startRaising(u, graves)]);
   opts.push(['Ждать', () => doAct(u, () => actWait(GAME.st, u))]);
@@ -310,6 +354,13 @@ function startRaising(u, graves) {
   setHint('Выберите могилу. Esc - назад.');
 }
 
+function startDestroying(u, spots) {
+  hidePopup();
+  GAME.mode = 'destroying';
+  VIEW.hl.graves = spots;
+  setHint('Выберите деревню. Esc - назад.');
+}
+
 async function doAct(u, fn) {
   hidePopup();
   setHint('');
@@ -327,7 +378,7 @@ async function doAct(u, fn) {
 function onTileClick(x, y) {
   const st = GAME.st;
   if (!st || !isHumanTurn()) return;
-  const u = unitAt(st, x, y);
+  const u = seenUnitAt(x, y);
   const sel = selUnit();
   switch (GAME.mode) {
     case 'idle':
@@ -377,6 +428,12 @@ function onTileClick(x, y) {
       else { setHint(''); openActionMenu(sel); }
       return;
     }
+    case 'destroying': {
+      const v = VIEW.hl.graves.find(g => g.x === x && g.y === y);
+      if (v) doAct(sel, () => actDestroy(st, sel, v.x, v.y));
+      else { setHint(''); openActionMenu(sel); }
+      return;
+    }
   }
 }
 
@@ -384,7 +441,7 @@ function onTileHover(t) {
   VIEW.hover = t;
   if (!t || !GAME.st) { hideForecast(); return; }
   if (GAME.mode === 'selected' && GAME.reach) {
-    const enemy = unitAt(GAME.st, t.x, t.y);
+    const enemy = seenUnitAt(t.x, t.y);
     const spot = enemy && isEnemy(enemy, selUnit()) && attackSpotFor(selUnit(), enemy);
     VIEW.hl.path = GAME.reach.has(key(t.x, t.y)) ? pathTo(GAME.reach, t.x, t.y) : spot ? pathTo(GAME.reach, spot.x, spot.y) : null;
   }
@@ -396,7 +453,7 @@ function onTileHover(t) {
 }
 
 function onCancel() {
-  if (GAME.mode === 'targeting' || GAME.mode === 'raising') { setHint(''); hideForecast(); openActionMenu(selUnit()); }
+  if (GAME.mode === 'targeting' || GAME.mode === 'raising' || GAME.mode === 'destroying') { setHint(''); hideForecast(); openActionMenu(selUnit()); }
   else if (GAME.mode === 'action') undoMove();
   else if (GAME.mode === 'confirm') cancelConfirm();
   else if (GAME.mode === 'selected' || GAME.mode === 'idle') deselect();
@@ -406,12 +463,13 @@ function onCancel() {
 function updateHud() {
   const st = GAME.st;
   if (!st) return;
-  const team = st.active, t = TEAMS[team];
+  const team = st.active, t = TEAMS[team], me = viewTeam();
+  VIEW.fogTeam = st.fog ? me : null;
   const turnTxt = GAME.mission.turnLimit ? `Ход ${st.turn}/${GAME.mission.turnLimit}` : `Ход ${st.turn}`;
-  $('#hud-turn').innerHTML = `<span class="chip" style="background:${t.color}"></span>${turnTxt}<span class="hide-narrow"> · ${t.name}</span>`;
-  const blue = st.teams.blue;
-  $('#hud-gold').innerHTML = `<span class="coin"></span>${blue.gold} <small>+${incomeOf(st, 'blue')}</small>`;
-  $('#hud-units').textContent = `Отряд ${teamUnits(st, 'blue').length}/${BAL.unitCap}`;
+  $('#hud-turn').innerHTML = `<span class="chip" style="background:${t.color}"></span>${turnTxt}<span class="hide-narrow"> · ${teamName(st, team)}</span>`;
+  const mine = st.teams[me];
+  $('#hud-gold').innerHTML = `<span class="coin" style="outline:2px solid ${TEAMS[me].color}"></span>${mine.gold} <small>+${incomeOf(st, me)}</small>`;
+  $('#hud-units').textContent = `Отряд ${teamUnits(st, me).length}/${BAL.unitCap}`;
   const human = isHumanTurn() && GAME.mode !== 'over';
   $('#btn-end').disabled = !human;
   const allDone = human && teamUnits(st, team).every(u => u.acted);
@@ -423,26 +481,28 @@ function showInfo(x, y) {
   const terr = TERRAIN[terrainAt(st, x, y)];
   const owner = ownerAt(st, x, y);
   let html = `<div class="terr"><b>${terr.name}</b> <span>защита +${terr.def}</span>`;
-  if (terr.building) html += ` <span>${owner ? TEAMS[owner].name : 'ничья'}, +${terr.income} золота</span>`;
+  if (terr.building) html += ` <span>${owner ? teamName(st, owner) : 'ничья'}, +${terr.income} золота</span>`;
   if (isFinite(terr.cost) && terr.cost > 1) html += ` <span>ход ${terr.cost}</span>`;
-  if (!isFinite(terr.cost)) html += ` <span>только для летающих</span>`;
+  if (!isFinite(terr.cost)) html += ` <span>${terr.water ? 'летающим и водным' : 'только для летающих'}</span>`;
+  else if (terr.water) html += ` <span>водным: ход 1, защита +${BAL.waterDef}</span>`;
   html += '</div>';
-  const u = unitAt(st, x, y);
+  const u = seenUnitAt(x, y);
   if (u) {
     const d = UNIT_DEFS[u.type];
-    const [lo, hi] = unitAtk(u);
-    const baseDef = d.def + u.level * BAL.levelDef;
-    const terrDef = d.flying ? 0 : terr.def;
+    const [lo, hi] = unitAtk(u, st);
+    const baseDef = d.def + u.level * BAL.levelDef - (u.poison ? BAL.poisonDef : 0);
+    const terrDef = terrainDefFor(st, u, x, y);
     html += `<div class="unit"><img src="${spriteDataUrl(u.type, u.team, 3)}" alt="">
       <div><b style="color:${TEAMS[u.team].light}">${d.name}</b>${u.level ? ` <span class="lvl">★${u.level}</span>` : ''}
       <div class="stats">
         <span title="Здоровье">❤ ${u.hp}</span>
-        <span title="Атака">⚔ ${lo}-${hi}</span>
+        ${d.noAttack ? '' : `<span title="Атака">⚔ ${lo}-${hi}</span>`}
         <span title="Защита (своя + местность)">⛨ ${baseDef}${terrDef ? '+' + terrDef : ''}</span>
         <span title="Очки хода">➜ ${d.move}</span>
-        <span title="Дальность">◎ ${d.range[0] === d.range[1] ? d.range[0] : d.range.join('-')}</span>
+        ${d.noAttack ? '' : `<span title="Дальность">◎ ${d.range[0] === d.range[1] ? d.range[0] : d.range.join('-')}</span>`}
       </div>
       <div class="xp"><i style="width:${u.level >= BAL.maxLevel ? 100 : u.xp / BAL.xpPerLevel * 100}%"></i></div>
+      ${u.poison ? `<div class="bad">Отравлен: −${BAL.poisonAtk} атаки и защиты, ещё ${u.poison} х.</div>` : ''}
       <div class="desc">${d.desc}</div></div></div>`;
   }
   box.innerHTML = html;
@@ -498,7 +558,7 @@ async function showBanner(title, sub) {
   const t = TEAMS[st.active];
   b.innerHTML = title
     ? `<div class="b-title">${title}</div><div class="b-sub">${sub}</div>`
-    : `<div class="b-title" style="color:${t.light}">${t.name}</div><div class="b-sub">Ход ${st.turn}</div>`;
+    : `<div class="b-title" style="color:${t.light}">${teamName(st, st.active)}</div><div class="b-sub">Ход ${st.turn}</div>`;
   b.style.setProperty('--team', title ? '#c9a24a' : t.color);
   b.hidden = false;
   b.classList.remove('show');
@@ -581,6 +641,7 @@ function openBuy(x, y) {
 }
 
 function showResult(res) {
+  if (GAME.mission.skirmish) return showSkirmishResult(res);
   const win = res === 'win';
   const idx = MISSIONS.findIndex(m => m.id === GAME.mission.id);
   const next = MISSIONS[idx + 1];
@@ -599,6 +660,21 @@ function showResult(res) {
   m.querySelector('[data-menu]').onclick = () => { closeModal(); quitToTitle(); };
 }
 
+function showSkirmishResult(res) {
+  const st = GAME.st, w = st.winner;
+  const hotseat = humanTeams().length > 1;
+  const title = res === 'win' ? (hotseat ? `Победа: ${teamName(st, w)}` : 'Победа!') : 'Поражение';
+  const m = openModal(`<h2 class="${res === 'win' ? 'good' : 'bad'}"${hotseat && w ? ` style="color:${TEAMS[w].light}"` : ''}>${title}</h2>
+    <p>${res === 'win' ? 'Все противники разбиты.' : 'Ваши войска разбиты.'}</p>
+    <p class="muted">Ходов: ${st.turn}</p>
+    <div class="modal-actions">
+      <button data-retry>Ещё раз</button>
+      <button class="secondary" data-menu>В меню</button>
+    </div>`, 'result');
+  m.querySelector('[data-retry]').onclick = () => { closeModal(); startMission(GAME.mission.id); };
+  m.querySelector('[data-menu]').onclick = () => { closeModal(); quitToTitle(); };
+}
+
 function openGameMenu() {
   if (!GAME.st) return;
   const m = openModal(`<h2>${GAME.mission.title}</h2><p class="goal">${GAME.mission.goal}</p>
@@ -606,7 +682,7 @@ function openGameMenu() {
       <button data-resume>Продолжить</button>
       <button data-sound class="secondary">Звук: ${SND.muted ? 'выкл' : 'вкл'}</button>
       <button data-rules class="secondary">Как играть</button>
-      <button data-restart class="secondary">Начать миссию заново</button>
+      <button data-restart class="secondary">Начать заново</button>
       <button data-quit class="secondary">Выйти в меню</button>
     </div>`);
   m.querySelector('[data-resume]').onclick = closeModal;

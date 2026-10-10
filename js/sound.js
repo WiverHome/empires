@@ -54,6 +54,7 @@ const SND = {
       case 'capture': this.tone(392, 0.12, { vol: 0.5 }); this.tone(587, 0.2, { vol: 0.5, delay: 0.1 }); break;
       case 'buy': this.tone(988, 0.08, { vol: 0.4 }); this.tone(1319, 0.15, { vol: 0.4, delay: 0.07 }); break;
       case 'raise': this.tone(180, 0.6, { type: 'triangle', slide: 200, vol: 0.6 }); this.tone(185, 0.6, { type: 'triangle', slide: 210, vol: 0.4 }); break;
+      case 'destroy': this.noise(0.4, { freq: 300, vol: 1.2 }); this.tone(90, 0.4, { type: 'sawtooth', slide: -50, vol: 0.5 }); break;
       case 'turn': this.tone(440, 0.1, { type: 'triangle', vol: 0.6 }); this.tone(660, 0.18, { type: 'triangle', vol: 0.6, delay: 0.1 }); break;
       case 'win': [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, 0.18, { type: 'triangle', vol: 0.6, delay: i * 0.12 })); break;
       case 'lose': [392, 349, 311, 262].forEach((f, i) => this.tone(f, 0.3, { type: 'triangle', vol: 0.6, delay: i * 0.2 })); break;

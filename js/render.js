@@ -22,6 +22,8 @@ const VIEW = {
   offsets: new Map(),   // id -> { dx, dy, alpha, flash }
   floaters: [],
   shake: 0,
+  fogTeam: null,        // туман войны: чьими глазами смотрим (ставит game.js)
+  vis: null,            // видимые клетки в этом кадре (null - тумана нет)
 };
 
 function initView(canvas) {
@@ -34,12 +36,21 @@ function initView(canvas) {
 
 function setViewState(st) {
   VIEW.st = st;
-  VIEW.layers = [renderTerrainLayer(st, 0), renderTerrainLayer(st, 1)];
+  refreshTerrain();
   clearHighlights();
   VIEW.offsets.clear();
   VIEW.floaters = [];
   zoomFit();
 }
+
+// Перерисовать местность (после разрушения или восстановления деревни)
+function refreshTerrain() {
+  const st = VIEW.st;
+  if (st) VIEW.layers = [renderTerrainLayer(st, 0), renderTerrainLayer(st, 1)];
+}
+
+// Видна ли клетка в тумане войны
+const isVisible = (x, y) => !VIEW.vis || VIEW.vis.has(key(x, y));
 
 // Масштаб: по умолчанию карта целиком вписана в экран (VIEW.fitTs), приближать можно до 2.5x.
 // Все координаты холста в физических пикселях (с учётом devicePixelRatio).
@@ -187,6 +198,25 @@ async function animEvents(events) {
       SND.play('raise');
       const o = offsetOf(e.unit);
       await tween(400, k => { o.alpha = k; });
+    } else if (e.type === 'poison') {
+      floater('Яд', e.x, e.y, '#9dff5a', 300);
+    } else if (e.type === 'cure') {
+      floater('Яд снят', e.x, e.y, '#c8ffd0');
+    } else if (e.type === 'destroy') {
+      const att = offsetOf(e.unit);
+      const dx = Math.sign(e.x - e.fx) * 0.3, dy = Math.sign(e.y - e.fy) * 0.3;
+      SND.play('swing');
+      await tween(ANIM.lunge, k => { const s = Math.sin(k * Math.PI); att.dx = dx * s; att.dy = dy * s; });
+      SND.play('destroy');
+      VIEW.shake = 8;
+      refreshTerrain();
+      floater('Разрушено', e.x, e.y, '#ffb06a');
+      await sleep(400);
+    } else if (e.type === 'repair') {
+      SND.play('capture');
+      refreshTerrain();
+      floater('Отстроено', e.x, e.y, TEAMS[e.team].light);
+      await sleep(350);
     } else if (e.type === 'buy') {
       SND.play('buy');
       const o = offsetOf(e.unit);
@@ -211,6 +241,7 @@ function frame(now) {
 
   const layer = VIEW.layers[Math.floor(now / ANIM.water) % 2];
   g.drawImage(layer, 0, 0, st.w * ts, st.h * ts);
+  VIEW.vis = st.fog && VIEW.fogTeam ? visibleTiles(st, VIEW.fogTeam) : null;
 
   // флаги владельцев
   for (const k in st.owner) {
@@ -219,6 +250,12 @@ function frame(now) {
   }
   // могилы
   for (const gr of st.graves) g.drawImage(graveSprite(), gr.x * ts, gr.y * ts, ts, ts);
+
+  // туман войны: местность видна, чужие войска - только в обзоре
+  if (VIEW.vis) {
+    g.fillStyle = 'rgba(14,10,24,0.5)';
+    for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) if (!VIEW.vis.has(key(x, y))) g.fillRect(x * ts, y * ts, ts, ts);
+  }
 
   // подсветка
   const hl = VIEW.hl;
@@ -229,6 +266,8 @@ function frame(now) {
   if (hl.targets) for (const t of hl.targets) frameTile(g, t.x, t.y, `rgba(255,80,60,${0.6 + 0.4 * pulse})`, 3);
   if (hl.graves) for (const t of hl.graves) frameTile(g, t.x, t.y, `rgba(160,255,200,${0.6 + 0.4 * pulse})`, 3);
   if (hl.path) drawPath(g, hl.path);
+  // цели миссии (куда довести кристалл и т.п.)
+  for (const m of VIEW.marks || []) frameTile(g, m.x, m.y, `rgba(255,216,74,${0.5 + 0.5 * pulse})`, Math.max(2, z));
 
   // курсор
   if (VIEW.hover) {
@@ -242,10 +281,11 @@ function frame(now) {
 
   // юниты (сверху вниз, чтобы нижние перекрывали верхние)
   const units = st.units.slice().sort((a, b) => a.y - b.y);
-  for (const u of units) drawUnit(g, u, now);
+  for (const u of units) if (u.team === VIEW.fogTeam || isVisible(u.x, u.y)) drawUnit(g, u, now);
   for (const d of VIEW.dying || []) {
+    if (!isVisible(d.x, d.y)) continue;
     g.globalAlpha = d.alpha;
-    g.drawImage(unitSprite(d.type, d.team, { flip: d.team === 'red' }), d.x * ts - z, d.y * ts - z, ts + 2 * z, ts + 2 * z);
+    g.drawImage(unitSprite(d.type, d.team, { flip: !!TEAMS[d.team].flip }), d.x * ts - z, d.y * ts - z, ts + 2 * z, ts + 2 * z);
     g.globalAlpha = 1;
   }
 
@@ -255,7 +295,7 @@ function frame(now) {
   g.font = `bold ${Math.round(z * 5.5)}px "Trebuchet MS", sans-serif`;
   for (const f of VIEW.floaters) {
     const k = (now - f.t0) / ANIM.floater;
-    if (k < 0) continue;
+    if (k < 0 || !isVisible(f.x, f.y)) continue;
     const x = (f.x + 0.5) * ts, y = f.y * ts + ts * 0.3 - k * ts * 0.6;
     g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
     g.lineWidth = z * 1.5;
@@ -337,7 +377,7 @@ function drawUnit(g, u, now) {
   g.lineWidth = Math.max(1, z * 0.8);
   g.strokeStyle = done ? 'rgba(20,10,30,0.6)' : team.dark;
   g.stroke();
-  const spr = unitSprite(u.type, u.team, { flip: u.team === 'red', grey: done });
+  const spr = unitSprite(u.type, u.team, { flip: !!TEAMS[u.team].flip, grey: done });
   g.drawImage(spr, x - z, y - z, ts + 2 * z, ts + 2 * z);
   if (o.flash > 0) {
     g.globalAlpha = o.flash * 0.8;
@@ -359,6 +399,19 @@ function drawUnit(g, u, now) {
     g.fillRect(tx - w - z, ty - z * 4.5, w + z * 1.5, z * 5);
     g.fillStyle = u.hp > 50 ? '#fff' : u.hp > 25 ? '#ffd84a' : '#ff6a5a';
     g.fillText(txt, tx, ty);
+  }
+  if (u.poison) {
+    // значок яда в правом верхнем углу: зелёная капля на тёмной плашке
+    const bx = x + ts - z * 6, by = (u.y + o.dy) * ts;
+    g.fillStyle = 'rgba(26,16,32,0.85)';
+    g.fillRect(bx, by, z * 6, z * 6);
+    g.fillStyle = '#7dff3a';
+    g.beginPath();
+    g.moveTo(bx + z * 3, by + z * 0.8);
+    g.quadraticCurveTo(bx + z * 5.2, by + z * 3.4, bx + z * 4.6, by + z * 4.4);
+    g.arc(bx + z * 3, by + z * 3.9, z * 1.7, 0.3, Math.PI - 0.3);
+    g.quadraticCurveTo(bx + z * 0.8, by + z * 3.4, bx + z * 3, by + z * 0.8);
+    g.fill();
   }
   if (u.level > 0) {
     g.font = `bold ${Math.round(z * 4)}px "Trebuchet MS", sans-serif`;

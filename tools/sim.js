@@ -3,12 +3,12 @@
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm');
 
-const LOGIC = ['data.js', 'rules.js', 'ai.js', 'campaign.js'];
+const LOGIC = ['data.js', 'rules.js', 'ai.js', 'campaign.js', 'skirmish.js'];
 function loadLogic() {
   const ctx = vm.createContext({ console, Math });
   for (const f of LOGIC) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
   // const/let верхнего уровня не попадают в контекст: достаём через выражение
-  return vm.runInContext('({ MISSIONS, createState, beginTurn, aiNextAction, aiApply, evaluateOutcome, spawnNear, teamUnits })', ctx);
+  return vm.runInContext('({ MISSIONS: MISSIONS.concat(SKIRMISH_MAPS.map(m => skirmishMission(skirmishId(m.id, 1000, "a".repeat(m.slots.length))))), createState, beginTurn, aiNextAction, aiApply, evaluateOutcome, spawnNear, teamUnits })', ctx);
 }
 
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };

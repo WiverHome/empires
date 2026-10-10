@@ -46,6 +46,8 @@ function createState(mission, opts = {}) {
     seed: (opts.seed ?? Math.floor(Math.random() * 2 ** 32)) >>> 0,
     flags: {},
     over: null,
+    fog: !!(opts.fog ?? mission.fog),
+    difficulty: opts.difficulty || 'normal',
   };
   st.active = st.order[0];
   for (const t of st.order) {
@@ -53,6 +55,7 @@ function createState(mission, opts = {}) {
     st.teams[t] = {
       gold: md.gold || 0,
       ai: !!md.ai,
+      name: md.name || null,
       commanderType: md.commander || null,
       commanderDead: false,
       commanderLevel: 0,
@@ -66,7 +69,7 @@ function createState(mission, opts = {}) {
   for (const b of mission.buildings || []) st.owner[key(b.x, b.y)] = b.team;
   for (const u of mission.units || []) {
     const lvl = u.commander && opts.commanderLevel ? opts.commanderLevel : (u.level || 0);
-    spawnUnit(st, u.type, u.team, u.x, u.y, { level: lvl, hp: u.hp, hold: u.hold, tag: u.tag });
+    spawnUnit(st, u.type, u.team, u.x, u.y, { level: lvl, hp: u.hp, hold: u.hold, tag: u.tag, goal: u.goal });
   }
   for (const g of mission.graves || []) st.graves.push({ x: g.x, y: g.y, turns: 999 });
   return st;
@@ -81,6 +84,7 @@ function spawnUnit(st, type, team, x, y, o = {}) {
   };
   if (o.hold) u.hold = true;          // ИИ: стоять на месте, пока враг не подойдёт
   if (o.tag) u.tag = o.tag;           // метка для сценария миссии
+  if (o.goal) u.goal = o.goal;        // ИИ: идти к этой клетке (кристалл в симуляции)
   if (def.commander) {
     st.teams[team].commanderType = type;
     st.teams[team].commanderDead = false;
@@ -111,19 +115,36 @@ function buildingsOf(st, team, kind) {
   return out;
 }
 
-function unitAtk(u) {
+// Огонёк рядом с клеткой (x, y): союзник u, не он сам
+function wispNear(st, u, x, y) {
+  return st.units.some(o => o.id !== u.id && o.team === u.team && UNIT_DEFS[o.type].auraAtk && dist(o.x, o.y, x, y) === 1);
+}
+
+// Атака с учётом уровня, яда и ауры огонька (если передано состояние; pos - откуда бьёт)
+function unitAtk(u, st, pos = u) {
   const d = UNIT_DEFS[u.type];
-  return [d.atk[0] + u.level * BAL.levelAtk, d.atk[1] + u.level * BAL.levelAtk];
+  let b = u.level * BAL.levelAtk;
+  if (u.poison) b -= BAL.poisonAtk;
+  if (st && !d.noAttack && wispNear(st, u, pos.x, pos.y)) b += BAL.wispAtk;
+  return [Math.max(0, d.atk[0] + b), Math.max(0, d.atk[1] + b)];
+}
+// Защита: своя + уровень + местность (водному - бонус в воде), яд снижает
+function terrainDefFor(st, u, x, y) {
+  const d = UNIT_DEFS[u.type], t = TERRAIN[terrainAt(st, x, y)];
+  if (d.flying) return 0;
+  return t.def + (d.swim && t.water ? BAL.waterDef : 0);
 }
 function unitDef(st, u, x = u.x, y = u.y) {
   const d = UNIT_DEFS[u.type];
-  const terr = d.flying ? 0 : TERRAIN[terrainAt(st, x, y)].def;
-  return d.def + u.level * BAL.levelDef + terr;
+  return d.def + u.level * BAL.levelDef + terrainDefFor(st, u, x, y) - (u.poison ? BAL.poisonDef : 0);
 }
 
 function moveCost(st, u, x, y) {
-  if (UNIT_DEFS[u.type].flying) return 1;
-  return TERRAIN[terrainAt(st, x, y)].cost;
+  const d = UNIT_DEFS[u.type];
+  if (d.flying) return 1;
+  const t = TERRAIN[terrainAt(st, x, y)];
+  if (d.swim && t.water) return 1;
+  return t.cost;
 }
 
 // Клетки, куда юнит может встать: Map key -> {x, y, cost, prev}
@@ -167,6 +188,7 @@ function pathTo(reach, x, y) {
 
 function canAttackFrom(u, fromX, fromY) {
   const d = UNIT_DEFS[u.type];
+  if (d.noAttack) return false;
   if (d.noMoveAttack && (fromX !== u.x || fromY !== u.y)) return false;
   return true;
 }
@@ -200,6 +222,23 @@ function gravesNear(st, x, y) {
   return st.graves.filter(g => dist(g.x, g.y, x, y) === 1 && !unitAt(st, g.x, g.y));
 }
 
+// Катапульта: деревни в радиусе, которые можно разрушить (чужие и ничьи, не замки)
+function destroyTargets(st, u, fromX = u.x, fromY = u.y) {
+  const d = UNIT_DEFS[u.type];
+  if (!d.canDestroy || !canAttackFrom(u, fromX, fromY)) return [];
+  const out = [];
+  for (const k in st.owner) {
+    const [x, y] = k.split(',').map(Number);
+    if (st.terrain[y][x] !== 'village' || st.owner[k] === u.team || unitAt(st, x, y)) continue;
+    const r = dist(fromX, fromY, x, y);
+    if (r >= d.range[0] && r <= d.range[1]) out.push({ x, y });
+  }
+  return out;
+}
+
+// Отстроить руины может тот, кто захватывает деревни
+const canRepairAt = (st, u, x = u.x, y = u.y) => !!UNIT_DEFS[u.type].canCapture && terrainAt(st, x, y) === 'ruins';
+
 function canCaptureAt(st, u, x = u.x, y = u.y) {
   const d = UNIT_DEFS[u.type];
   const t = terrainAt(st, x, y);
@@ -213,9 +252,10 @@ function canCaptureAt(st, u, x = u.x, y = u.y) {
 // Урон без случайности: mode 'min' | 'max' | 'avg' | 'roll'
 function damageOf(st, att, def, mode, attPos, defPos) {
   const a = UNIT_DEFS[att.type];
-  const [lo, hi] = unitAtk(att);
+  const [lo, hi] = unitAtk(att, st, attPos || att);
   let base = mode === 'min' ? lo : mode === 'max' ? hi : mode === 'avg' ? (lo + hi) / 2 : randInt(st, lo, hi);
   if (a.vsFlying && UNIT_DEFS[def.type].flying) base += a.vsFlying;
+  if (a.vsUndead && UNIT_DEFS[def.type].undead) base += a.vsUndead;
   const dp = defPos || def;
   const raw = Math.max(0, base - unitDef(st, def, dp.x, dp.y));
   return Math.min(def.hp, Math.round(raw * att.hp / BAL.maxHp));
@@ -236,6 +276,7 @@ function forecast(st, att, def, fromX = att.x, fromY = att.y) {
 
 function canCounter(def, att, attX, attY) {
   const d = UNIT_DEFS[def.type];
+  if (d.noAttack) return false;
   const r = dist(def.x, def.y, attX, attY);
   return r >= d.range[0] && r <= d.range[1];
 }
@@ -258,6 +299,10 @@ function strike(st, att, def, events) {
   events.push({ type: 'hit', from: att.id, to: def.id, toTag: def.tag, dmg, x: def.x, y: def.y, fx: att.x, fy: att.y });
   let xp = dmg;
   if (def.hp <= 0) { xp += BAL.xpKillBonus; killUnit(st, def, events); }
+  else if (UNIT_DEFS[att.type].poison && !UNIT_DEFS[def.type].undead && !UNIT_DEFS[def.type].noAttack) {
+    if (!def.poison) events.push({ type: 'poison', unit: def.id, x: def.x, y: def.y });
+    def.poison = BAL.poisonTurns;
+  }
   gainXp(st, att, xp, events);
   return def.hp <= 0;
 }
@@ -266,11 +311,12 @@ function killUnit(st, u, events) {
   st.units = st.units.filter(o => o.id !== u.id);
   const d = UNIT_DEFS[u.type];
   if (u.tag === 'boss') st.flags.bossDead = true;
+  if (u.type === 'crystal') st.flags.crystalLost = true;
   if (d.commander) {
     st.teams[u.team].commanderDead = true;
     st.teams[u.team].commanderLevel = u.level;
   }
-  if (u.type !== 'ghost') {
+  if (u.type !== 'ghost' && u.type !== 'crystal') {
     st.graves = st.graves.filter(g => !(g.x === u.x && g.y === u.y));
     st.graves.push({ x: u.x, y: u.y, turns: BAL.graveTurns * st.order.length });
   }
@@ -304,6 +350,21 @@ function actRaise(st, u, g) {
   const gh = spawnUnit(st, 'ghost', u.team, g.x, g.y, { exhausted: true });
   u.moved = u.acted = true;
   return [{ type: 'raise', unit: gh.id, x: g.x, y: g.y }];
+}
+
+function actDestroy(st, u, x, y) {
+  const prev = ownerAt(st, x, y);
+  st.terrain[y][x] = 'ruins';
+  delete st.owner[key(x, y)];
+  u.moved = u.acted = true;
+  return [{ type: 'destroy', unit: u.id, team: u.team, prev, x, y, fx: u.x, fy: u.y }];
+}
+
+function actRepair(st, u) {
+  st.terrain[u.y][u.x] = 'village';
+  st.owner[key(u.x, u.y)] = u.team;
+  u.moved = u.acted = true;
+  return [{ type: 'repair', unit: u.id, team: u.team, x: u.x, y: u.y }];
 }
 
 function actWait(st, u) { u.moved = u.acted = true; return []; }
@@ -341,15 +402,20 @@ function actBuy(st, team, type, x, y) {
 function incomeOf(st, team) {
   let g = 0;
   for (const b of buildingsOf(st, team)) g += TERRAIN[terrainAt(st, b.x, b.y)].income || 0;
+  if (st.teams[team].ai) g = Math.round(g * (DIFFICULTY[st.difficulty] || DIFFICULTY.normal).aiIncome / 5) * 5;
   return g;
 }
 
 function endTurn(st) {
   const events = [];
-  const idx = st.order.indexOf(st.active);
-  const next = st.order[(idx + 1) % st.order.length];
-  if (idx === st.order.length - 1) st.turn++;
-  st.active = next;
+  // разбитые стороны пропускают ход
+  let idx = st.order.indexOf(st.active);
+  for (let i = 0; i < st.order.length; i++) {
+    idx = (idx + 1) % st.order.length;
+    if (idx === 0) st.turn++;
+    if (!isEliminated(st, st.order[idx])) break;
+  }
+  st.active = st.order[idx];
   // могилы исчезают со временем
   for (const g of st.graves) g.turns--;
   st.graves = st.graves.filter(g => g.turns > 0);
@@ -367,13 +433,40 @@ function beginTurn(st) {
     u.moved = u.acted = false;
     let heal = 0;
     const t = terrainAt(st, u.x, u.y);
-    if (TERRAIN[t].building && ownerAt(st, u.x, u.y) === team) heal += BAL.healBuilding;
-    if (mine.some(o => o !== u && UNIT_DEFS[o.type].aura && dist(o.x, o.y, u.x, u.y) === 1)) heal += BAL.healAura;
+    const onBuilding = TERRAIN[t].building && ownerAt(st, u.x, u.y) === team;
+    const healer = mine.some(o => o !== u && UNIT_DEFS[o.type].aura && dist(o.x, o.y, u.x, u.y) === 1);
+    if (onBuilding) heal += BAL.healBuilding;
+    if (healer) heal += BAL.healAura;
+    // яд: лечение снимает сразу, иначе слабеет с каждым ходом
+    if (u.poison) {
+      if (onBuilding || healer) u.poison = 0; else u.poison--;
+      if (!u.poison) { delete u.poison; events.push({ type: 'cure', unit: u.id, x: u.x, y: u.y }); }
+    }
     heal = Math.min(heal, BAL.maxHp - u.hp);
     if (heal > 0) { u.hp += heal; events.push({ type: 'heal', unit: u.id, amount: heal, x: u.x, y: u.y }); }
   }
   return events;
 }
+
+/* ---------- Туман войны ---------- */
+// Клетки, которые видит сторона: обзор юнитов и своих зданий
+function visibleTiles(st, team) {
+  const vis = new Set();
+  const look = (cx, cy, r) => {
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++)
+        if (Math.abs(dx) + Math.abs(dy) <= r && inBounds(st, cx + dx, cy + dy)) vis.add(key(cx + dx, cy + dy));
+  };
+  for (const u of st.units) {
+    if (u.team !== team) continue;
+    const t = terrainAt(st, u.x, u.y);
+    look(u.x, u.y, BAL.vision + (UNIT_DEFS[u.type].flying ? 1 : 0) + (t === 'hill' || t === 'mountain' ? 1 : 0));
+  }
+  for (const b of buildingsOf(st, team)) look(b.x, b.y, BAL.visionBuilding);
+  return vis;
+}
+
+const teamName = (st, team) => st.teams[team].name || TEAMS[team].name;
 
 // Сторона разбита: нет юнитов и нет замков
 function isEliminated(st, team) {
