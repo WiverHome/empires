@@ -98,6 +98,12 @@ button.secondary small { color: var(--muted); }
   box-shadow: 0 6px 20px rgba(0,0,0,.5);
 }
 .popup button { text-align: left; padding: 7px 12px; }
+.popup.confirm { flex-direction: row; align-items: center; gap: 12px; width: min(420px, calc(100vw - 16px)); }
+.popup.confirm .confirm-info { flex: 1; }
+.confirm-btns { display: flex; flex-direction: column; gap: 6px; }
+.confirm-btns button { text-align: center; }
+.confirm-info { font-size: 14px; padding: 2px 4px 4px; }
+.confirm-info b { color: var(--text); }
 .forecast { pointer-events: none; font-size: 14px; min-width: 0; gap: 2px; }
 
 #banner {

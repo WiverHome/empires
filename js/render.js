@@ -327,11 +327,16 @@ function drawUnit(g, u, now) {
   const idle = !done && u.team === st.active ? Math.round(Math.sin(now / 260 + u.id) * 0.6) : 0;
   const x = (u.x + o.dx) * ts, y = (u.y + o.dy) * ts + idle * z;
   g.globalAlpha = o.alpha;
-  // тень
-  g.fillStyle = 'rgba(20,10,30,0.35)';
+  // подставка цвета стороны: сразу видно, свой или чужой
+  const team = TEAMS[u.team];
+  const bx = (u.x + o.dx) * ts + ts / 2, by = (u.y + o.dy) * ts + ts - 2.5 * z;
   g.beginPath();
-  g.ellipse(x + ts / 2, (u.y + o.dy) * ts + ts - 2 * z, ts * 0.32, z * 2, 0, 0, Math.PI * 2);
+  g.ellipse(bx, by, ts * 0.42, ts * 0.13, 0, 0, Math.PI * 2);
+  g.fillStyle = done ? 'rgba(40,30,50,0.45)' : team.color + '99';
   g.fill();
+  g.lineWidth = Math.max(1, z * 0.8);
+  g.strokeStyle = done ? 'rgba(20,10,30,0.6)' : team.dark;
+  g.stroke();
   const spr = unitSprite(u.type, u.team, { flip: u.team === 'red', grey: done });
   g.drawImage(spr, x - z, y - z, ts + 2 * z, ts + 2 * z);
   if (o.flash > 0) {

@@ -197,33 +197,66 @@ function renderTerrainLayer(st, frame) {
   return c;
 }
 
-/* ---------- Спрайты юнитов: обводка цветом стороны, отражение, серый вариант ---------- */
+/* ---------- Спрайты юнитов: оружие в руке, обводка цветом стороны, отражение, серый вариант ---------- */
+// Спрайт собирается в сетке 48x48: фигурка из листа в 3 раза крупнее, оружие (UNIT_DEFS.weapon) в 2 раза,
+// поэтому оружие получается тоньше фигурки и читается отдельно. Вокруг - обводка 3px цвета стороны.
+// Итоговый холст 54x54 рисуется на клетку так же, как раньше 18x18 (поля по 1/16 клетки).
+const SPR_GRID = 48, SPR_PAD = 3, SPR_SIZE = SPR_GRID + SPR_PAD * 2;
 const unitCache = new Map();
+
+function tilePixels(sheet, idx) {
+  const [c, g] = makeCanvas(TILE, TILE);
+  blit(g, sheet, idx, 0, 0);
+  return g.getImageData(0, 0, TILE, TILE).data;
+}
+
+function composeUnit(type) {
+  const def = UNIT_DEFS[type];
+  const N = SPR_GRID, comp = new Uint8ClampedArray(N * N * 4);
+  const put = (src, sx, sy, scale, ox, oy) => {
+    const i = (sy * TILE + sx) * 4;
+    if (!src[i + 3]) return;
+    for (let a = 0; a < scale; a++) for (let b = 0; b < scale; b++) {
+      const x = ox + sx * scale + b, y = oy + sy * scale + a;
+      if (x < 0 || y < 0 || x >= N || y >= N) continue;
+      comp.set([src[i], src[i + 1], src[i + 2], 255], (y * N + x) * 4);
+    }
+  };
+  const body = tilePixels(def.sheet || 'dungeon', def.sprite);
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) put(body, x, y, 3, 0, 0);
+  if (def.weapon) {
+    const w = def.weapon, src = tilePixels(w.sheet, w.idx);
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) put(src, x, y, 2, w.x, w.y);
+  }
+  return comp;
+}
 
 function unitSprite(type, team, opts = {}) {
   const flip = !!opts.flip, grey = !!opts.grey;
   const k = type + '|' + team + '|' + flip + '|' + grey;
   if (unitCache.has(k)) return unitCache.get(k);
-  const def = UNIT_DEFS[type];
-  const [base, bg] = makeCanvas(TILE, TILE);
-  blit(bg, def.sheet || 'dungeon', def.sprite, 0, 0);
-  const src = bg.getImageData(0, 0, TILE, TILE);
-  // холст 18x18: спрайт со сдвигом 1, вокруг непрозрачных пикселей обводка цвета стороны
-  const S = TILE + 2;
+  const ck = 'comp|' + type;
+  if (!unitCache.has(ck)) unitCache.set(ck, composeUnit(type));
+  const src = unitCache.get(ck), N = SPR_GRID, P = SPR_PAD, S = SPR_SIZE;
   const [c, g] = makeCanvas(S, S);
   const out = g.createImageData(S, S);
   const col = hexRgb(TEAMS[team].color);
-  const alphaAt = (x, y) => (x < 0 || y < 0 || x >= TILE || y >= TILE) ? 0 : src.data[(y * TILE + x) * 4 + 3];
+  const solid = (x, y) => x >= 0 && y >= 0 && x < N && y < N && src[(y * N + x) * 4 + 3] > 0;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const sx = flip ? TILE - 1 - (x - 1) : x - 1, sy = y - 1;
+    const sx = flip ? N - 1 - (x - P) : x - P, sy = y - P;
     const o = (y * S + x) * 4;
-    const a = alphaAt(sx, sy);
-    if (a > 0) {
-      const i = (sy * TILE + sx) * 4;
-      let r = src.data[i], gg = src.data[i + 1], b = src.data[i + 2];
+    if (solid(sx, sy)) {
+      const i = (sy * N + sx) * 4;
+      let r = src[i], gg = src[i + 1], b = src[i + 2];
       if (grey) { const l = r * 0.3 + gg * 0.59 + b * 0.11; r = gg = b = l * 0.75; }
       out.data[o] = r; out.data[o + 1] = gg; out.data[o + 2] = b; out.data[o + 3] = 255;
-    } else if (alphaAt(sx - 1, sy) || alphaAt(sx + 1, sy) || alphaAt(sx, sy - 1) || alphaAt(sx, sy + 1)) {
+      continue;
+    }
+    let near = false;
+    for (let dy = -P; dy <= P && !near; dy++)
+      for (let dx = -P; dx <= P; dx++)
+        if (dx * dx + dy * dy <= P * P + 1 && solid(sx + dx, sy + dy)) { near = true; break; }
+    if (near) {
       const f = grey ? 0.55 : 1;
       out.data[o] = col[0] * f; out.data[o + 1] = col[1] * f; out.data[o + 2] = col[2] * f; out.data[o + 3] = 255;
     }
@@ -239,11 +272,8 @@ function hexRgb(h) {
 }
 
 // Иконка тайла/юнита для DOM (портреты, меню покупки)
-function spriteDataUrl(type, team, scale = 3) {
-  const s = unitSprite(type, team);
-  const [c, g] = makeCanvas(s.width * scale, s.height * scale);
-  g.drawImage(s, 0, 0, c.width, c.height);
-  return c.toDataURL();
+function spriteDataUrl(type, team) {
+  return unitSprite(type, team).toDataURL();
 }
 
 function portraitDataUrl(spriteIdx, team, scale = 4) {

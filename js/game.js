@@ -183,8 +183,76 @@ function selectUnit(u) {
   const threat = threatTiles(GAME.st, u, GAME.reach);
   for (const k of GAME.reach.keys()) threat.delete(k);
   VIEW.hl.threat = [...threat];
+  const inRange = GAME.st.units.filter(t => isEnemy(t, u) && attackSpotFor(u, t));
+  VIEW.hl.targets = inRange.length ? inRange : null;
   GAME.mode = 'selected';
   showInfo(u.x, u.y);
+}
+
+/* ---------- Быстрая атака: нажатие на врага в зоне досягаемости ---------- */
+// Лучшая клетка, откуда выбранный юнит может ударить цель в этом ходу:
+// меньше ответного урона, затем больше защиты местности, затем короче путь.
+function attackSpotFor(u, t) {
+  const d = UNIT_DEFS[u.type];
+  let best = null;
+  for (const n of GAME.reach.values()) {
+    if (d.noMoveAttack && (n.x !== GAME.orig.x || n.y !== GAME.orig.y)) continue;
+    const r = dist(n.x, n.y, t.x, t.y);
+    if (r < d.range[0] || r > d.range[1]) continue;
+    const f = forecast(GAME.st, u, t, n.x, n.y);
+    const score = -f.counter * 10 + unitDef(GAME.st, u, n.x, n.y) - n.cost * 0.5;
+    if (!best || score > best.score) best = { x: n.x, y: n.y, score };
+  }
+  return best;
+}
+
+function confirmAttack(u, t, spot) {
+  GAME.mode = 'confirm';
+  GAME.pending = { target: t.id, x: spot.x, y: spot.y };
+  VIEW.hl.reach = null;
+  VIEW.hl.threat = null;
+  VIEW.hl.targets = [t];
+  VIEW.hl.path = pathTo(GAME.reach, spot.x, spot.y);
+  const f = forecast(GAME.st, u, t, spot.x, spot.y);
+  const left = Math.max(0, t.hp - f.dmg);
+  const m = $('#popup');
+  m.innerHTML = `<div class="confirm-info"><b>${UNIT_DEFS[t.type].name}</b>
+    <div>Урон: <b>~${f.dmg}</b> (${t.hp} → ${left})</div>
+    ${f.kills ? '<div class="good">Добьёт</div>' : `<div>Ответ: <b class="${f.counter ? 'bad' : ''}">~${f.counter}</b></div>`}</div>`;
+  const go = el('button', '', 'Атаковать');
+  go.onclick = e => { e.stopPropagation(); SND.play('click'); executePendingAttack(); };
+  const no = el('button', 'secondary', 'Отмена');
+  no.onclick = e => { e.stopPropagation(); SND.play('click'); cancelConfirm(); };
+  const btns = el('div', 'confirm-btns');
+  btns.append(go, no);
+  m.append(btns);
+  m.classList.add('confirm');
+  m.hidden = false;
+  // внизу карты, над панелью информации: не закрывает ни цель, ни путь
+  const r = $('#map-wrap').getBoundingClientRect();
+  m.style.left = Math.max(8, r.left + (r.width - m.offsetWidth) / 2) + 'px';
+  m.style.top = (r.bottom - m.offsetHeight - 8) + 'px';
+}
+
+function cancelConfirm() {
+  GAME.pending = null;
+  hidePopup();
+  const u = selUnit();
+  if (u) selectUnit(u); else deselect();
+}
+
+async function executePendingAttack() {
+  const u = selUnit(), p = GAME.pending;
+  const t = p && unitById(GAME.st, p.target);
+  GAME.pending = null;
+  hidePopup();
+  if (!u || !t) { deselect(); return; }
+  const path = pathTo(GAME.reach, p.x, p.y);
+  GAME.mode = 'busy';
+  VIEW.hl.path = null;
+  actMove(GAME.st, u, p.x, p.y);
+  if (path.length > 1) { SND.play('move'); await animMove(u, path); }
+  doAct(u, () => actAttack(GAME.st, u, t));
 }
 
 async function moveSelected(x, y) {
@@ -265,6 +333,10 @@ function onTileClick(x, y) {
     case 'idle':
     case 'selected': {
       if (GAME.mode === 'selected' && sel && GAME.reach.has(key(x, y))) { moveSelected(x, y); return; }
+      if (GAME.mode === 'selected' && sel && u && isEnemy(u, sel)) {
+        const spot = attackSpotFor(sel, u);
+        if (spot) { confirmAttack(sel, u, spot); return; }
+      }
       if (u && u.team === st.active && !u.acted) { selectUnit(u); return; }
       deselect();
       if (u) {
@@ -290,6 +362,15 @@ function onTileClick(x, y) {
       else { setHint(''); hideForecast(); openActionMenu(sel); }
       return;
     }
+    case 'confirm': {
+      // повторное нажатие на ту же цель подтверждает атаку, на другую цель - переключает
+      if (u && GAME.pending && u.id === GAME.pending.target) { executePendingAttack(); return; }
+      const spot = u && isEnemy(u, sel) && attackSpotFor(sel, u);
+      if (spot) { confirmAttack(sel, u, spot); return; }
+      cancelConfirm();
+      if (GAME.reach.has(key(x, y))) moveSelected(x, y);
+      return;
+    }
     case 'raising': {
       const gr = VIEW.hl.graves.find(g => g.x === x && g.y === y);
       if (gr) doAct(sel, () => actRaise(st, sel, gr));
@@ -303,7 +384,9 @@ function onTileHover(t) {
   VIEW.hover = t;
   if (!t || !GAME.st) { hideForecast(); return; }
   if (GAME.mode === 'selected' && GAME.reach) {
-    VIEW.hl.path = GAME.reach.has(key(t.x, t.y)) ? pathTo(GAME.reach, t.x, t.y) : null;
+    const enemy = unitAt(GAME.st, t.x, t.y);
+    const spot = enemy && isEnemy(enemy, selUnit()) && attackSpotFor(selUnit(), enemy);
+    VIEW.hl.path = GAME.reach.has(key(t.x, t.y)) ? pathTo(GAME.reach, t.x, t.y) : spot ? pathTo(GAME.reach, spot.x, spot.y) : null;
   }
   if (GAME.mode === 'targeting') {
     const target = VIEW.hl.targets.find(o => o.x === t.x && o.y === t.y);
@@ -315,6 +398,7 @@ function onTileHover(t) {
 function onCancel() {
   if (GAME.mode === 'targeting' || GAME.mode === 'raising') { setHint(''); hideForecast(); openActionMenu(selUnit()); }
   else if (GAME.mode === 'action') undoMove();
+  else if (GAME.mode === 'confirm') cancelConfirm();
   else if (GAME.mode === 'selected' || GAME.mode === 'idle') deselect();
 }
 
@@ -377,7 +461,7 @@ function showPopupMenu(x, y, opts) {
   placeNearTile(m, x, y);
 }
 
-function hidePopup() { $('#popup').hidden = true; hideForecast(); }
+function hidePopup() { const p = $('#popup'); p.hidden = true; p.classList.remove('confirm'); hideForecast(); }
 
 function placeNearTile(node, x, y) {
   const r = VIEW.canvas.getBoundingClientRect(), k = 1 / VIEW.dpr, ts = VIEW.ts * k;
