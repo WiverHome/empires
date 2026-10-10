@@ -1,3 +1,8 @@
 # Единые переводы строк (LF) во всех текстовых файлах
 * text=auto eol=lf
 *.png binary
+# bat-файлы Windows (gradlew.bat) - с CRLF, иначе cmd может сбиться
+*.bat text eol=crlf
+*.ogg binary
+*.mp3 binary
+*.jar binary

@@ -13,6 +13,8 @@ const SPEAKERS = {
   bandit: { name: 'Разбойник', sprite: 85,  team: 'red' },
   bran:   { name: 'Бран',      sprite: 87,  team: 'red' },
   morven: { name: 'Морвен',    sprite: 111, team: 'red' },
+  sif:    { name: 'Сиф',       sprite: 88,  team: 'blue' },
+  haar:   { name: 'Хаар',      sprite: 96,  team: 'red' },
 };
 
 const onTurn = (n, team = 'blue') => (st, ctx) => ctx.phase === 'turn' && st.turn === n && st.active === team;
@@ -21,6 +23,7 @@ const onEvent = pred => (st, ctx) => ctx.phase === 'events' && ctx.events.some(e
 const MISSIONS = [
   {
     id: 'm1',
+    par: 8,
     title: 'Пограничная застава',
     goal: 'Разбейте всех разбойников. Ардан должен выжить.',
     map: [
@@ -74,6 +77,7 @@ const MISSIONS = [
 
   {
     id: 'm2',
+    par: 16,
     title: 'Деревни у реки',
     goal: 'Захватите замок Брана или разбейте его войско. В своём замке можно нанимать воинов.',
     map: [
@@ -138,6 +142,7 @@ const MISSIONS = [
 
   {
     id: 'm3',
+    par: 13,
     title: 'Мост на Серой реке',
     goal: 'Продержитесь 12 ходов. Не отдайте свой замок, Ардан должен выжить.',
     turnLimit: 12,
@@ -218,6 +223,7 @@ const MISSIONS = [
 
   {
     id: 'm4',
+    par: 10,
     title: 'Цитадель Морвена',
     goal: 'Победите Морвена. Ардан должен выжить.',
     map: [
@@ -293,6 +299,7 @@ const MISSIONS = [
   // ===== Глава 2: болотная ведьма =====
   {
     id: 'm5',
+    par: 14,
     title: 'Болотная тропа',
     goal: 'Разбейте всех врагов на болоте. Ардан должен выжить.',
     map: [
@@ -352,6 +359,7 @@ const MISSIONS = [
 
   {
     id: 'm6',
+    par: 12,
     title: 'Кристалл Света',
     goal: 'Доведите Кристалл до алтаря (золотая рамка) за 14 ходов. Если Кристалл погибнет, миссия провалена.',
     turnLimit: 14,
@@ -419,6 +427,7 @@ const MISSIONS = [
 
   {
     id: 'm7',
+    par: 14,
     title: 'Устье реки',
     goal: 'Захватите замок красных или разбейте их войско. В вашем замке можно нанимать воинов.',
     map: [
@@ -486,6 +495,7 @@ const MISSIONS = [
 
   {
     id: 'm8',
+    par: 14,
     title: 'Логово Ильвы',
     goal: 'Победите ведьму Ильву. Ардан должен выжить.',
     map: [
@@ -550,7 +560,287 @@ const MISSIONS = [
     outro: [
       { who: 'witch', text: 'Топь... вернётся... она всегда возвращается...' },
       { who: 'lira', text: 'Воздух чист. Яд уходит из земли.' },
-      { who: 'hero', text: 'Эта земля свободна. Спасибо вам, друзья. Королевство в безопасности, на этот раз по-настоящему.' },
+      { who: 'hero', text: 'Эта земля свободна. Но с севера дует холодный ветер...' },
+    ],
+  },
+
+  // ===== Глава 3: север =====
+  {
+    id: 'm9',
+    par: 12,
+    title: 'Снежная дорога',
+    goal: 'Разбейте передовой отряд северян. Ардан должен выжить.',
+    map: [
+      'MMh.v.,.hMM',
+      'Mf..,,,..fM',
+      'h..f.,.f..h',
+      '.v..,,,..v.',
+      'ff.,.h.,.ff',
+      '...,...,...',
+      'M..,.M.,..M',
+      '.f.,,,,,.f.',
+      '...v...v...',
+      'hf.......fh',
+      '..,,,,,,,..',
+      '.f...v...f.',
+      'MM..,,,..MM',
+    ],
+    teams: { blue: { gold: 0 }, red: { gold: 0, ai: true } },
+    buildings: [{ x: 4, y: 0, team: 'red' }, { x: 1, y: 3, team: 'red' }, { x: 9, y: 3, team: 'red' }],
+    units: [
+      { type: 'hero', team: 'blue', x: 5, y: 12, commander: true },
+      { type: 'soldier', team: 'blue', x: 4, y: 12 },
+      { type: 'soldier', team: 'blue', x: 6, y: 12 },
+      { type: 'archer', team: 'blue', x: 5, y: 11 },
+      { type: 'healer', team: 'blue', x: 3, y: 11 },
+      { type: 'shaman', team: 'red', x: 4, y: 3 },
+      { type: 'shaman', team: 'red', x: 6, y: 3 },
+      { type: 'soldier', team: 'red', x: 3, y: 5 },
+      { type: 'soldier', team: 'red', x: 7, y: 5 },
+      { type: 'archer', team: 'red', x: 5, y: 2, hold: true },
+      { type: 'soldier', team: 'red', x: 4, y: 0, hold: true },
+      { type: 'bat', team: 'red', x: 8, y: 1 },
+    ],
+    intro: [
+      { who: 'hero', text: 'Прошла зима после победы над Ильвой. А теперь с севера бегут люди.' },
+      { who: 'sif', text: 'Я Сиф, из северных деревень. Вождь Хаар ведёт орду на юг, и его шаманы сковывают ноги воинам.' },
+      { who: 'hero', text: 'Тогда встретим его передовой отряд здесь, на снежной дороге.' },
+    ],
+    triggers: [
+      {
+        when: onEvent(e => e.type === 'slow'),
+        say: [{ who: 'sif', text: 'Скован! В свой следующий ход этот воин пройдёт на две клетки меньше. Бейте шаманов первыми.' }],
+      },
+      {
+        when: onTurn(2),
+        say: [{ who: 'sif', text: 'Не все шаманы служат Хаару. Мой брат пойдёт с вами, его посох тоже сковывает.' }],
+        spawn: [{ type: 'shaman', team: 'blue', x: 5, y: 12 }],
+      },
+    ],
+    outro: [
+      { who: 'bandit', text: 'Хаар собрал всех северных разбойников. Даже Бран теперь служит ему!' },
+      { who: 'hero', text: 'Бран? Старый знакомый. Значит, следующая цель - его форт.' },
+    ],
+  },
+
+  {
+    id: 'm10',
+    par: 14,
+    title: 'Форт Брана',
+    goal: 'Захватите замок Брана командиром. Ардан должен выжить.',
+    map: [
+      'MMf.,C,.fMM',
+      'Mh..,,,..hM',
+      'f.v.,.,.v.f',
+      '..ff,.,ff..',
+      'h...,,,...h',
+      '~~=~~~~~=~~',
+      '.s.......s.',
+      'f..h.v.h..f',
+      '.,,,,,,,,,.',
+      '.,.f...f.,.',
+      'v,.......,v',
+      '.,,..h..,,.',
+      'f..,,,,,..f',
+      'h..,.C.,..h',
+      'MM.v...v.MM',
+    ],
+    teams: {
+      blue: { gold: 600 },
+      red: { gold: 400, ai: true, buy: ['shaman', 'soldier', 'archer', 'catapult'] },
+    },
+    buildings: [
+      { x: 5, y: 13, team: 'blue' }, { x: 3, y: 14, team: 'blue' }, { x: 7, y: 14, team: 'blue' },
+      { x: 5, y: 0, team: 'red' }, { x: 2, y: 2, team: 'red' }, { x: 8, y: 2, team: 'red' },
+    ],
+    units: [
+      { type: 'hero', team: 'blue', x: 5, y: 12, commander: true },
+      { type: 'soldier', team: 'blue', x: 4, y: 12 },
+      { type: 'soldier', team: 'blue', x: 6, y: 12 },
+      { type: 'shaman', team: 'blue', x: 5, y: 11 },
+      { type: 'healer', team: 'blue', x: 3, y: 12 },
+      { type: 'archer', team: 'blue', x: 7, y: 12 },
+      { type: 'warlord', team: 'red', x: 5, y: 1, hold: true },
+      { type: 'catapult', team: 'red', x: 4, y: 2, hold: true },
+      { type: 'catapult', team: 'red', x: 6, y: 2, hold: true },
+      { type: 'soldier', team: 'red', x: 2, y: 4 },
+      { type: 'soldier', team: 'red', x: 8, y: 4 },
+      { type: 'shaman', team: 'red', x: 5, y: 4 },
+      { type: 'archer', team: 'red', x: 4, y: 3, hold: true },
+    ],
+    intro: [
+      { who: 'bran', text: 'Ардан! Опять ты. Но теперь у меня стены и катапульты, а за спиной - Хаар!' },
+      { who: 'lira', text: 'Катапульты бьют издалека, но после движения стрелять не могут. Подходите к ним вплотную.' },
+      { who: 'hero', text: 'Мосты на флангах. Возьмём их и ударим по замку.' },
+    ],
+    triggers: [
+      {
+        when: onTurn(6, 'red'),
+        say: [{ who: 'bran', text: 'Ребята, все на стены!' }],
+        spawn: [{ type: 'soldier', team: 'red', x: 5, y: 1 }, { type: 'shaman', team: 'red', x: 4, y: 1 }],
+      },
+    ],
+    check(st) {
+      if (ownerAt(st, 5, 0) === 'blue') return 'win';
+      return null;
+    },
+    outro: [
+      { who: 'bran', text: 'Сдаюсь, опять сдаюсь! Хаар идёт к Ледяному мосту, хочет отрезать вас от дома.' },
+      { who: 'sif', text: 'Если мост падёт, юг останется без защиты. Нужно спешить.' },
+    ],
+  },
+
+  {
+    id: 'm11',
+    par: 11,
+    title: 'Ледяной мост',
+    goal: 'Продержитесь 10 ходов. Не отдайте свой замок, Ардан должен выжить.',
+    turnLimit: 10,
+    map: [
+      'MM..,C,..MM',
+      'M...,,,...M',
+      '.f.v,.,v.f.',
+      '..,,,.,,,..',
+      'h.,..h..,.h',
+      'MM,.MMM.,MM',
+      '~~=~~~~~=~~',
+      '~~=~~~~~=~~',
+      'M.,.....,.M',
+      '..,.f.f.,..',
+      'v.,,,,,,,.v',
+      '.h...,...h.',
+      'f..f.,.f..f',
+      'h.v..C..v.h',
+      'MM.......MM',
+    ],
+    teams: {
+      blue: { gold: 500 },
+      red: { gold: 600, ai: true, buy: ['shaman', 'soldier', 'archer', 'golem', 'bat'] },
+    },
+    buildings: [
+      { x: 5, y: 13, team: 'blue' }, { x: 2, y: 13, team: 'blue' }, { x: 8, y: 13, team: 'blue' },
+      { x: 0, y: 10, team: 'blue' }, { x: 10, y: 10, team: 'blue' },
+      { x: 5, y: 0, team: 'red' }, { x: 3, y: 2, team: 'red' }, { x: 7, y: 2, team: 'red' },
+    ],
+    units: [
+      { type: 'hero', team: 'blue', x: 5, y: 12, commander: true },
+      { type: 'soldier', team: 'blue', x: 2, y: 9 },
+      { type: 'soldier', team: 'blue', x: 8, y: 9 },
+      { type: 'archer', team: 'blue', x: 3, y: 10 },
+      { type: 'archer', team: 'blue', x: 7, y: 10 },
+      { type: 'shaman', team: 'blue', x: 5, y: 11 },
+      { type: 'healer', team: 'blue', x: 4, y: 12 },
+      { type: 'warlord', team: 'red', x: 5, y: 1, hold: true },
+      { type: 'soldier', team: 'red', x: 2, y: 3 },
+      { type: 'soldier', team: 'red', x: 8, y: 3 },
+      { type: 'shaman', team: 'red', x: 4, y: 3 },
+      { type: 'shaman', team: 'red', x: 6, y: 3 },
+      { type: 'golem', team: 'red', x: 5, y: 4 },
+      { type: 'archer', team: 'red', x: 2, y: 4 },
+      { type: 'archer', team: 'red', x: 8, y: 4 },
+    ],
+    intro: [
+      { who: 'sif', text: 'Хаар бросил к мосту всё войско. Если удержим переправы десять ходов, орда выдохнется.' },
+      { who: 'hero', text: 'Два моста - две двери. Встанем у выходов и не пустим их на наш берег.' },
+      { who: 'lira', text: 'Берегитесь нетопырей: им вода не помеха.' },
+    ],
+    triggers: [
+      {
+        when: onTurn(4, 'red'),
+        say: [{ who: 'haar', text: 'Крылья севера, летите через реку!' }],
+        spawn: [{ type: 'bat', team: 'red', x: 4, y: 1 }, { type: 'bat', team: 'red', x: 6, y: 1 }],
+      },
+      {
+        when: onTurn(7, 'red'),
+        say: [{ who: 'haar', text: 'Каменные стражи, ломайте их строй!' }],
+        spawn: [{ type: 'golem', team: 'red', x: 5, y: 2 }, { type: 'shaman', team: 'red', x: 5, y: 3 }],
+      },
+    ],
+    check(st) {
+      if (ownerAt(st, 5, 13) !== 'blue') return 'lose';
+      if (st.turn > 10 && st.active === 'blue') return 'win';
+      if (ownerAt(st, 5, 0) === 'blue') return 'win';
+      return null;
+    },
+    outro: [
+      { who: 'haar', text: 'Отступаем к Трону! Пусть рыцарь придёт ко мне сам.' },
+      { who: 'hero', text: 'Придём. Это последний поход.' },
+    ],
+  },
+
+  {
+    id: 'm12',
+    par: 16,
+    title: 'Трон Севера',
+    goal: 'Победите вождя Хаара. Ардан должен выжить.',
+    map: [
+      'MMh.,C,.hMM',
+      'Mh..,,,..hM',
+      'f.r.,.,.r.f',
+      '.,,,,h,,,,.',
+      'f.,.MMM.,.f',
+      '..,..v..,..',
+      'hh,.....,hh',
+      '..,,.r.,,..',
+      'v.f.....f.v',
+      '.,,,,h,,,,.',
+      '.,.f...f.,.',
+      'f,..,,,..,f',
+      'h.v..h..v.h',
+      'M...,C,...M',
+      'MMf.....fMM',
+    ],
+    teams: {
+      blue: { gold: 1000 },
+      red: { gold: 400, ai: true, buy: ['shaman', 'golem', 'catapult', 'demon', 'archer'] },
+    },
+    buildings: [
+      { x: 5, y: 13, team: 'blue' }, { x: 2, y: 12, team: 'blue' }, { x: 8, y: 12, team: 'blue' },
+      { x: 5, y: 0, team: 'red' },
+    ],
+    units: [
+      { type: 'hero', team: 'blue', x: 5, y: 12, commander: true },
+      { type: 'healer', team: 'blue', x: 4, y: 13 },
+      { type: 'shaman', team: 'blue', x: 6, y: 13 },
+      { type: 'wisp', team: 'blue', x: 4, y: 12 },
+      { type: 'soldier', team: 'blue', x: 6, y: 12 },
+      { type: 'archer', team: 'blue', x: 3, y: 11 },
+      { type: 'golem', team: 'blue', x: 7, y: 11 },
+      { type: 'haar', team: 'red', x: 5, y: 1, hold: true, tag: 'boss' },
+      { type: 'golem', team: 'red', x: 4, y: 3, hold: true },
+      { type: 'golem', team: 'red', x: 6, y: 3, hold: true },
+      { type: 'catapult', team: 'red', x: 5, y: 3, hold: true },
+      { type: 'shaman', team: 'red', x: 3, y: 4 },
+      { type: 'shaman', team: 'red', x: 7, y: 4 },
+      { type: 'archer', team: 'red', x: 2, y: 3 },
+      { type: 'archer', team: 'red', x: 8, y: 3 },
+      { type: 'bat', team: 'red', x: 1, y: 6 },
+    ],
+    intro: [
+      { who: 'haar', text: 'Юг размяк, рыцарь. Мои чары скуют твоих воинов, как лёд сковывает реку.' },
+      { who: 'sif', text: 'Его удар тоже сковывает. Не подставляйте ему тех, кто нужен в следующем ходу.' },
+      { who: 'hero', text: 'Огонёк, Лира, держитесь рядом. Идём на Трон.' },
+    ],
+    triggers: [
+      {
+        when: onEvent(e => e.type === 'hit' && e.toTag === 'boss'),
+        say: [{ who: 'haar', text: 'Ты силён, южанин... Шаманы, ко мне!' }],
+        spawn: [{ type: 'shaman', team: 'red', x: 4, y: 1 }, { type: 'shaman', team: 'red', x: 6, y: 1 }],
+      },
+      {
+        when: onTurn(6, 'red'),
+        say: [{ who: 'haar', text: 'Дух метели, приди!' }],
+        spawn: [{ type: 'demon', team: 'red', x: 5, y: 2 }],
+      },
+    ],
+    check(st) {
+      if (st.flags.bossDead) return 'win';
+      return null;
+    },
+    outro: [
+      { who: 'haar', text: 'Лёд... тает...' },
+      { who: 'sif', text: 'Север свободен. Мои люди вернутся домой.' },
+      { who: 'hero', text: 'Хроники Эльдора дописаны. Пора и нам домой.' },
     ],
   },
 ];

@@ -4,7 +4,7 @@
 /* ---------- Сохранения (localStorage) ---------- */
 const SAVE = {
   KEY: 'empires.save.v1',
-  data: { unlocked: 1, heroLevel: 0, completed: [], current: null, prefs: {}, maps: [] },
+  data: { unlocked: 1, heroLevel: 0, completed: [], current: null, prefs: {}, maps: [], stars: {}, achievements: {}, replays: [] },
 
   load() {
     try {
@@ -13,6 +13,9 @@ const SAVE = {
     } catch (e) { /* приватный режим или битое сохранение: играем без него */ }
     this.data.prefs = this.data.prefs || {};
     this.data.maps = Array.isArray(this.data.maps) ? this.data.maps : [];
+    this.data.stars = this.data.stars || {};
+    this.data.achievements = this.data.achievements || {};
+    this.data.replays = Array.isArray(this.data.replays) ? this.data.replays : [];
     CUSTOM_MAPS.length = 0;
     CUSTOM_MAPS.push(...this.data.maps);
     // в кампании могли появиться новые миссии: открыть следующую за последней пройденной
@@ -28,14 +31,29 @@ const SAVE = {
 
   // Автосохранение в начале хода игрока и после каждого действия
   saveCurrent() {
-    if (!GAME.st || GAME.st.over) return;
+    if (!GAME.st || GAME.st.over || GAME.replay) return;
     this.data.current = { missionId: GAME.mission.id, state: GAME.st, fired: GAME.fired };
     this.write();
   },
   clearCurrent() { this.data.current = null; this.write(); },
 
+  // Последние партии для повтора (журнал действий + сид). Своя карта сохраняется в записи.
+  REPLAYS_KEEP: 5,
+  addReplay(mission, st, res) {
+    if (!st.log || !st.rinit) return;   // партия начата до появления повторов
+    const sm = mission.skirmish ? skirmishMapById(mission.id.split(':')[1]) : null;
+    this.data.replays.unshift({
+      missionId: mission.id, title: mission.title, res, turn: st.turn, date: Date.now(),
+      sides: st.order.map(t => [t, st.teams[t].ai ? 'a' : 'h']),
+      rinit: st.rinit, log: st.log, map: sm && sm.custom ? sm : undefined,
+    });
+    this.data.replays.length = Math.min(this.data.replays.length, this.REPLAYS_KEEP);
+    this.write();
+  },
+
   missionWon(id, st) {
     const idx = MISSIONS.findIndex(m => m.id === id);
+    this.data.stars[id] = Math.max(this.data.stars[id] || 0, missionStars(MISSIONS[idx], st));
     if (!this.data.completed.includes(id)) this.data.completed.push(id);
     this.data.unlocked = Math.max(this.data.unlocked, Math.min(MISSIONS.length, idx + 2));
     // уровень Ардана переходит в следующую миссию
@@ -47,6 +65,7 @@ const SAVE = {
 /* ---------- Экраны ---------- */
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => { s.hidden = s.id !== 'screen-' + name; });
+  SND.music(name === 'game' ? 'battle' : 'menu');
 }
 
 function renderTitle() {
@@ -75,23 +94,52 @@ function renderTitle() {
   const rb = el('button', 'secondary', 'Как играть');
   rb.onclick = () => { SND.play('click'); showRules(); };
   box.appendChild(rb);
+  const row = el('div', 'btn-row');
+  const ab = el('button', 'secondary', `Достижения <small>${Object.keys(SAVE.data.achievements).length} из ${ACHIEVEMENTS.length}</small>`);
+  ab.onclick = () => { SND.play('click'); showAchievements(); };
+  const pb = el('button', 'secondary', `Повторы <small>${SAVE.data.replays.length ? 'последних: ' + SAVE.data.replays.length : 'пока нет'}</small>`);
+  pb.onclick = () => { SND.play('click'); showReplays(); };
+  row.append(ab, pb);
+  box.appendChild(row);
+  const mb = el('button', 'secondary', musicLabel());
+  mb.onclick = () => { toggleMusic(); mb.textContent = musicLabel(); SND.play('click'); };
+  box.appendChild(mb);
+}
+
+const musicLabel = () => 'Музыка: ' + (SND.musicMuted ? 'выкл' : 'вкл');
+function toggleMusic() {
+  SND.setMusicMuted(!SND.musicMuted);
+  SAVE.setPref('musicMuted', SND.musicMuted);
 }
 
 // Сложность действует на новые партии: доход и ошибки ИИ
 const difficultyLabel = () => `Сложность: ${DIFFICULTY[SAVE.data.prefs.difficulty || 'normal'].name}`;
 
-function renderMissions() {
-  const list = MISSIONS.map((m, i) => {
+const CHAPTERS = ['Морвен', 'Болота', 'Север'];
+const MISSIONS_PER_CHAPTER = 4;
+
+// Кампания по главам: по умолчанию открыта глава последней доступной миссии
+function renderMissions(chapter) {
+  const last = Math.min(SAVE.data.unlocked, MISSIONS.length) - 1;
+  const ch = chapter ?? Math.floor(last / MISSIONS_PER_CHAPTER);
+  const tabs = CHAPTERS.map((name, c) => {
+    const open = c * MISSIONS_PER_CHAPTER < SAVE.data.unlocked;
+    return `<button class="${c === ch ? '' : 'secondary'}" data-ch="${c}" ${open ? '' : 'disabled'}>${c + 1}. ${name}</button>`;
+  }).join('');
+  const list = MISSIONS.slice(ch * MISSIONS_PER_CHAPTER, (ch + 1) * MISSIONS_PER_CHAPTER).map((m, j) => {
+    const i = ch * MISSIONS_PER_CHAPTER + j;
     const open = i < SAVE.data.unlocked;
     const done = SAVE.data.completed.includes(m.id);
     return `<button class="mission ${open ? '' : 'locked'}" data-id="${m.id}" ${open ? '' : 'disabled'}>
       <span class="m-num">${i + 1}</span><span class="m-body"><b>${m.title}</b><small>${open ? m.goal : 'Закрыто'}</small></span>
-      ${done ? '<span class="m-done">✓</span>' : ''}</button>`;
+      ${done ? `<span class="m-done">${starsText(SAVE.data.stars[m.id] || 1)}</span>` : ''}</button>`;
   }).join('');
   const m = openModal(`<h2>Кампания</h2>${SAVE.data.heroLevel ? `<p class="muted">Уровень Ардана: ★${SAVE.data.heroLevel}</p>` : ''}
+    <div class="seg chapters">${tabs}</div>
     <div class="mission-list">${list}</div>
     ${SAVE.data.current ? '<p class="warn">Новая миссия заменит текущее сохранение.</p>' : ''}
     <div class="modal-actions"><button class="secondary" data-close>Назад</button></div>`, 'missions');
+  m.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => { SND.play('click'); renderMissions(+b.dataset.ch); });
   m.querySelectorAll('.mission:not(.locked)').forEach(b => b.onclick = () => {
     SND.play('click');
     closeModal();
@@ -115,27 +163,33 @@ function renderSkirmishSetup() {
     const sm = mapOf(), sides = sidesStr();
     const active = [...sides].filter(c => c !== 'n').length;
     const ok = active >= 2 && sides.includes('h');
-    const maps = [...SKIRMISH_MAPS, ...CUSTOM_MAPS].map(m => `<button class="${m.id === sm.id ? '' : 'secondary'}" data-map="${m.id}">${escHtml(m.title)}<small>${m.custom ? 'своя, ' : ''}${m.slots.length === 2 ? 'двое' : m.slots.length === 3 ? 'трое' : 'до четырёх'}</small></button>`).join('');
+    const all = [...SKIRMISH_MAPS, ...CUSTOM_MAPS], mi = Math.max(0, all.findIndex(x => x.id === sm.id));
+    const maps = `<button class="secondary icon" data-step="-1">◀</button>
+      <div class="map-pick"><b>${escHtml(sm.title)}</b><small>${mi + 1} из ${all.length} · ${sm.custom ? 'своя · ' : ''}${escHtml(sm.desc)}</small></div>
+      <button class="secondary icon" data-step="1">▶</button>`;
     const slots = sm.slots.map((s, i) => `<div class="side-row"><span class="chip" style="background:${TEAMS[s.team].color}"></span>
       <span class="side-name">${TEAMS[s.team].label}</span>
       <div class="seg">${Object.keys(SIDE_KINDS).map(k => `<button class="${sides[i] === k ? '' : 'secondary'}" data-team="${s.team}" data-kind="${k}">${SIDE_KINDS[k]}</button>`).join('')}</div></div>`).join('');
     const golds = SKIRMISH_GOLD.map(g => `<button class="${g === cfg.gold ? '' : 'secondary'}" data-gold="${g}"><span class="coin"></span>${g}</button>`).join('');
     const m = openModal(`<h2>Схватка</h2>
-      <div class="seg maps">${maps}</div>
-      <div class="seg ed-tools"><button class="secondary" data-new-map>Новая карта</button>${sm.custom ? '<button class="secondary" data-edit-map>Изменить</button>' : ''}</div>
-      <p class="muted sk-desc">${escHtml(sm.desc)}</p>
+      <div class="map-row">${maps}</div>
+      <div class="seg ed-tools"><button class="secondary" data-new-map>Новая карта</button>${sm.custom ? '<button class="secondary" data-edit-map>Изменить</button><button class="secondary" data-share-map>Поделиться</button>' : ''}<button class="secondary" data-import-map>Ввести код</button></div>
       ${slots}
       <div class="side-row"><span class="side-name">Золото</span><div class="seg">${golds}</div></div>
       <div class="side-row"><span class="side-name">Туман</span><div class="seg"><button class="${cfg.fog ? 'secondary' : ''}" data-fog="0">Нет</button><button class="${cfg.fog ? '' : 'secondary'}" data-fog="1">Есть</button></div></div>
       ${!ok ? '<p class="warn">Нужно хотя бы две стороны и один игрок.</p>' : SAVE.data.current ? '<p class="warn">Новая партия заменит текущее сохранение.</p>' : ''}
       <div class="modal-actions"><button class="secondary" data-close>Назад</button><button data-start ${ok ? '' : 'disabled'}>В бой</button></div>`, 'skirmish');
-    m.querySelectorAll('[data-map]').forEach(b => b.onclick = () => { SND.play('click'); cfg.map = b.dataset.map; draw(); });
+    m.querySelectorAll('[data-step]').forEach(b => b.onclick = () => {
+      SND.play('click');
+      cfg.map = all[(mi + +b.dataset.step + all.length) % all.length].id;
+      draw();
+    });
     const edit = existing => {
       SND.play('click');
       openMapEditor(existing, res => {
         if (res && res.map) {
           const i = SAVE.data.maps.findIndex(x => x.id === res.map.id);
-          if (i >= 0) SAVE.data.maps[i] = res.map; else SAVE.data.maps.push(res.map);
+          if (i >= 0) SAVE.data.maps[i] = res.map; else { SAVE.data.maps.push(res.map); grantAchievements({ phase: 'map' }); }
           cfg.map = res.map.id;
         } else if (res && res.deleted) {
           SAVE.data.maps = SAVE.data.maps.filter(x => x.id !== res.deleted);
@@ -150,6 +204,21 @@ function renderSkirmishSetup() {
     m.querySelector('[data-new-map]').onclick = () => edit(null);
     const eb = m.querySelector('[data-edit-map]');
     if (eb) eb.onclick = () => edit(sm);
+    const shb = m.querySelector('[data-share-map]');
+    if (shb) shb.onclick = () => { SND.play('click'); showMapCode(sm, draw); };
+    m.querySelector('[data-import-map]').onclick = () => {
+      SND.play('click');
+      importMapCode(map => {
+        if (map) {
+          SAVE.data.maps.push(map);
+          CUSTOM_MAPS.length = 0;
+          CUSTOM_MAPS.push(...SAVE.data.maps);
+          SAVE.write();
+          cfg.map = map.id;
+        }
+        draw();
+      });
+    };
     m.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { SND.play('click'); cfg.sides[b.dataset.team] = b.dataset.kind; draw(); });
     m.querySelectorAll('[data-gold]').forEach(b => b.onclick = () => { SND.play('click'); cfg.gold = +b.dataset.gold; draw(); });
     m.querySelectorAll('[data-fog]').forEach(b => b.onclick = () => { SND.play('click'); cfg.fog = b.dataset.fog === '1'; draw(); });
@@ -163,6 +232,67 @@ function renderSkirmishSetup() {
     };
   };
   draw();
+}
+
+function showAchievements() {
+  const have = SAVE.data.achievements;
+  const list = ACHIEVEMENTS.map(a => `<div class="ach ${have[a.id] ? 'got' : ''}"><span class="ach-icon">${have[a.id] ? '🏆' : '🔒'}</span>
+    <span><b>${a.name}</b><small>${a.desc}</small></span></div>`).join('');
+  const m = openModal(`<h2>Достижения</h2><div class="ach-list">${list}</div>
+    <div class="modal-actions"><button class="secondary" data-close>Назад</button></div>`, 'achievements');
+  m.querySelector('[data-close]').onclick = () => { SND.play('click'); closeModal(); renderTitle(); };
+}
+
+function showReplays() {
+  const fmt = ts => new Date(ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const res = r => r.res === 'win' ? '<span class="good">победа</span>' : '<span class="bad">поражение</span>';
+  const list = SAVE.data.replays.map((r, i) => `<button class="mission" data-i="${i}"><span class="m-body"><b>${escHtml(r.title)}</b>
+    <small>${fmt(r.date)} · ${res(r)} · ходов: ${r.turn}</small></span><span class="m-done">▶</span></button>`).join('');
+  const m = openModal(`<h2>Повторы</h2>
+    ${list ? `<div class="mission-list">${list}</div>` : '<p class="muted">Здесь появятся последние законченные партии.</p>'}
+    ${SAVE.data.current ? '<p class="muted">Сохранённая партия не пострадает.</p>' : ''}
+    <div class="modal-actions"><button class="secondary" data-close>Назад</button></div>`, 'missions');
+  m.querySelectorAll('[data-i]').forEach(b => b.onclick = () => { SND.play('click'); closeModal(); startReplay(SAVE.data.replays[+b.dataset.i]); });
+  m.querySelector('[data-close]').onclick = () => { SND.play('click'); closeModal(); };
+}
+
+// Код своей карты: скопировать и отправить другу
+function showMapCode(sm, back) {
+  const code = encodeMapCode(sm);
+  const m = openModal(`<h2>${escHtml(sm.title)}</h2>
+    <p class="muted">Отправьте этот код. Друг откроет «Схватка», «Ввести код» и вставит его.</p>
+    <textarea class="map-code" readonly rows="5">${code}</textarea>
+    <p class="muted copy-state"></p>
+    <div class="modal-actions"><button class="secondary" data-back>Назад</button><button data-copy>Копировать</button></div>`);
+  const ta = m.querySelector('textarea');
+  ta.onfocus = () => ta.select();
+  m.querySelector('[data-copy]').onclick = async () => {
+    SND.play('click');
+    let ok = false;
+    try { await navigator.clipboard.writeText(code); ok = true; } catch (e) {
+      ta.select();
+      try { ok = document.execCommand('copy'); } catch (e2) { /* нет доступа к буферу */ }
+    }
+    m.querySelector('.copy-state').textContent = ok ? 'Скопировано.' : 'Выделите код и скопируйте вручную.';
+  };
+  m.querySelector('[data-back]').onclick = () => { SND.play('click'); back(); };
+}
+
+// Ввод кода карты; done(map) с новой картой или done(null) при отмене
+function importMapCode(done) {
+  const m = openModal(`<h2>Карта по коду</h2>
+    <textarea class="map-code" rows="5" placeholder="EMP1:…"></textarea>
+    <p class="warn" hidden></p>
+    <div class="modal-actions"><button class="secondary" data-back>Назад</button><button data-add>Добавить</button></div>`);
+  const ta = m.querySelector('textarea'), err = m.querySelector('.warn');
+  m.querySelector('[data-back]').onclick = () => { SND.play('click'); done(null); };
+  m.querySelector('[data-add]').onclick = () => {
+    SND.play('click');
+    const res = decodeMapCode(ta.value, 'c' + Date.now().toString(36));
+    if (typeof res === 'string') { err.textContent = res; err.hidden = false; return; }
+    done(res);
+  };
+  ta.focus();
 }
 
 function showRules() {
@@ -183,11 +313,12 @@ function showRules() {
       <li>За урон воины получают опыт. Уровень даёт +${BAL.levelAtk} к атаке и +${BAL.levelDef} к защите.</li>
       <li>Павшие оставляют могилы на ${BAL.graveTurns} хода. Чародей может поднять из могилы призрака.</li>
       <li>Паук отравляет: −${BAL.poisonAtk} к атаке и −${BAL.poisonDef} к защите на ${BAL.poisonTurns} хода. Яд сразу снимает целительница рядом или своё здание.</li>
+      <li>Шаман сковывает цель: в свой следующий ход она пройдёт на ${BAL.slowMove} клетки меньше.</li>
       <li>Огонёк даёт соседним союзникам +${BAL.wispAtk} к атаке и особенно силён против нежити.</li>
       <li>Водяной плавает по воде и мелководью и получает там +${BAL.waterDef} к защите.</li>
       <li>Катапульта, не двигаясь, может разрушить чужую деревню. Руины отстраивает мечник или командир.</li>
       <li>В тумане войны видно только то, что рядом с вашими воинами и зданиями.</li>
-      <li>Управление: перетаскивание - двигать карту, колесо или кнопки ± - масштаб, Esc или правая кнопка - отмена, E - конец хода.</li>
+      <li>Управление: перетаскивание - двигать карту, колесо или кнопки ± - масштаб, Esc или правая кнопка - отмена, E - конец хода. Кнопка ↶ или Ctrl+Z отменяет действия текущего хода (результат удара от этого не изменится).</li>
     </ul>
     <h3>Воины</h3><div class="table-wrap"><table class="units"><tr><th></th><th></th><th>Цена</th><th>Атака</th><th>Защ.</th><th>Ход</th><th>Дальн.</th></tr>${rows}</table></div>
     <h3>Местность</h3><table class="terrain"><tr><th></th><th>Ход</th><th>Защита</th></tr>${terr}</table>
@@ -265,6 +396,7 @@ function wireInput() {
     if (!$('#modal-root').hidden) { if (e.key === 'Escape') closeModal(); return; }
     const step = VIEW.ts;
     if (e.key === 'Escape') onCancel();
+    else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я')) { e.preventDefault(); undoAction(); }
     else if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') { if (!$('#btn-end').disabled) endTurnClicked(); }
     else if (e.key === 'ArrowLeft' || e.key === 'a') { VIEW.camX -= step; clampCamera(); }
     else if (e.key === 'ArrowRight' || e.key === 'd') { VIEW.camX += step; clampCamera(); }
@@ -285,6 +417,10 @@ function endTurnClicked() {
 async function boot() {
   SAVE.load();
   SND.muted = !!SAVE.data.prefs.muted;
+  SND.musicMuted = !!SAVE.data.prefs.musicMuted;
+  // браузер разрешает звук только после касания
+  window.addEventListener('pointerdown', () => SND.unlock(), { capture: true });
+  window.addEventListener('keydown', () => SND.unlock(), { capture: true });
   try {
     await loadAssets();
   } catch (e) {
@@ -294,6 +430,7 @@ async function boot() {
   initView($('#map'));
   wireInput();
   $('#btn-end').onclick = endTurnClicked;
+  $('#btn-undo').onclick = undoAction;
   $('#btn-menu').onclick = () => { SND.play('click'); openGameMenu(); };
   $('#btn-zoom-in').onclick = () => zoomStep(1);
   $('#btn-zoom-out').onclick = () => zoomStep(-1);

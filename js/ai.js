@@ -11,6 +11,7 @@ const AI_TUNE = {
   destroyNeutral: 20,        // ... ничью
   repair: 80,                // отстроить руины
   poisonHit: 25,             // отравить цель, которая выживет
+  slowHit: 15,               // сковать цель, которая выживет
   wispNear: 8,               // огоньку: за союзника рядом (усиление атаки)
   killBonus: 40,
   captureVillage: 70,
@@ -194,6 +195,7 @@ function planUnit(st, u, ctx) {
       let v = f.dmg * unitWorth(t) / 100 - f.counter * worth / 100;
       if (f.kills) v += AI_TUNE.killBonus + unitWorth(t) / 10;
       else if (d.poison && !t.poison && !UNIT_DEFS[t.type].undead) v += AI_TUNE.poisonHit;
+      if (!f.kills && d.slow && !t.slow) v += AI_TUNE.slowHit;
       if (UNIT_DEFS[t.type].commander) v *= 1.3;
       // после атаки юнит остаётся на клетке; убитая цель в свой ход уже не ударит
       const r = f.kills ? risk(n.x, n.y, t.id) : tileRisk;

@@ -148,8 +148,10 @@ function moveCost(st, u, x, y) {
 }
 
 // Клетки, куда юнит может встать: Map key -> {x, y, cost, prev}
+const moveOf = u => Math.max(1, UNIT_DEFS[u.type].move - (u.slow ? BAL.slowMove : 0));
+
 function reachable(st, u) {
-  const move = UNIT_DEFS[u.type].move;
+  const move = moveOf(u);
   const best = new Map();
   best.set(key(u.x, u.y), { x: u.x, y: u.y, cost: 0, prev: null });
   const open = [best.get(key(u.x, u.y))];
@@ -303,6 +305,11 @@ function strike(st, att, def, events) {
     if (!def.poison) events.push({ type: 'poison', unit: def.id, x: def.x, y: def.y });
     def.poison = BAL.poisonTurns;
   }
+  // сковывание - только в ход атакующего (ответный удар не сковывает): держится до конца хода цели
+  if (def.hp > 0 && UNIT_DEFS[att.type].slow && att.team === st.active && !def.slow && !UNIT_DEFS[def.type].noAttack) {
+    def.slow = true;
+    events.push({ type: 'slow', unit: def.id, x: def.x, y: def.y });
+  }
   gainXp(st, att, xp, events);
   return def.hp <= 0;
 }
@@ -408,6 +415,7 @@ function incomeOf(st, team) {
 
 function endTurn(st) {
   const events = [];
+  for (const u of teamUnits(st, st.active)) delete u.slow;   // сковывание прошло
   // разбитые стороны пропускают ход
   let idx = st.order.indexOf(st.active);
   for (let i = 0; i < st.order.length; i++) {

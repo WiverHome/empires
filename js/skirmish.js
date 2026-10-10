@@ -110,11 +110,100 @@ const SKIRMISH_MAPS = [
       { team: 'green', castle: [9, 9], cmd: [8, 9] },
     ],
   },
+  {
+    id: 'isles', title: 'Архипелаг', desc: 'Двое, острова и броды: водяным здесь раздолье.',
+    map: rotateMap([
+      '~s..,C,..s~',
+      '~.v.,,,.v.~',
+      's..f...f..s',
+      '~s~~=~=~~s~',
+      '..v.s.s.v..',
+      'f.h.~~~.h.f',
+    ], 'v..s=r=s..v'),
+    slots: [
+      { team: 'blue', castle: [5, 12], cmd: [5, 11] },
+      { team: 'red', castle: [5, 0], cmd: [5, 1] },
+    ],
+  },
+  {
+    id: 'thicket', title: 'Чаща', desc: 'Двое, длинная лесная карта, в центре руины.',
+    map: rotateMap([
+      'ff.v.C.v.ff',
+      'f..,,,,,..f',
+      '.,,f.f.f,,.',
+      '.,ff.h.ff,.',
+      'v,f..h..f,v',
+      '.,.ff.ff.,.',
+      'ff,..f..,ff',
+    ], 'h.,,frf,,.h'),
+    slots: [
+      { team: 'blue', castle: [5, 14], cmd: [5, 13] },
+      { team: 'red', castle: [5, 0], cmd: [5, 1] },
+    ],
+  },
+  {
+    id: 'forts', title: 'Крепости', desc: 'До четырёх сторон, руины и ничейный замок в центре.',
+    map: mirrorMap([
+      'M.f.v.',
+      '.C,,,,',
+      'f,.h.,',
+      '.,h..r',
+      'v,..f.',
+      '.,r.,C',
+    ]),
+    slots: [
+      { team: 'blue', castle: [1, 9], cmd: [2, 9] },
+      { team: 'yellow', castle: [1, 1], cmd: [2, 1] },
+      { team: 'red', castle: [9, 1], cmd: [8, 1] },
+      { team: 'green', castle: [9, 9], cmd: [8, 9] },
+    ],
+  },
 ];
 
 // Свои карты игрока (заполняет main.js из сохранения), формат как у SKIRMISH_MAPS
 const CUSTOM_MAPS = [];
 const skirmishMapById = id => SKIRMISH_MAPS.find(m => m.id === id) || CUSTOM_MAPS.find(m => m.id === id) || null;
+
+/* ---------- Код карты для обмена: "EMP1:" + base64url(JSON {t, m, s}) ---------- */
+const MAP_CODE_PREFIX = 'EMP1:';
+const MAP_CODE_TEAMS = ['blue', 'red', 'green', 'yellow'];
+
+function encodeMapCode(sm) {
+  const json = JSON.stringify({ t: sm.title, m: sm.map, s: sm.slots.map(s => [s.team, ...s.castle, ...s.cmd]) });
+  let bin = '';
+  for (const b of new TextEncoder().encode(json)) bin += String.fromCharCode(b);
+  return MAP_CODE_PREFIX + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// Разобрать код карты: объект карты (как в CUSTOM_MAPS, с новым id) или строка ошибки
+function decodeMapCode(code, id) {
+  code = String(code || '').replace(/\s+/g, '');
+  if (!code.startsWith(MAP_CODE_PREFIX)) return 'Это не код карты.';
+  let d;
+  try {
+    const bin = atob(code.slice(MAP_CODE_PREFIX.length).replace(/-/g, '+').replace(/_/g, '/'));
+    d = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+  } catch (e) { return 'Код повреждён.'; }
+  const rows = d && d.m;
+  if (!Array.isArray(rows) || !rows.length || typeof rows[0] !== 'string') return 'Код повреждён.';
+  const h = rows.length, w = rows[0].length;
+  if (w < 7 || w > 11 || h < 7 || h > 15) return 'Неподходящий размер карты.';
+  if (rows.some(r => typeof r !== 'string' || r.length !== w || [...r].some(c => !MAP_LEGEND[c]))) return 'Код повреждён.';
+  const at = (x, y) => (x >= 0 && y >= 0 && x < w && y < h) ? MAP_LEGEND[rows[y][x]] : null;
+  const seen = new Set(), slots = [];
+  for (const s of Array.isArray(d.s) ? d.s : []) {
+    const [team, cx, cy, x, y] = s || [];
+    if (!MAP_CODE_TEAMS.includes(team) || seen.has(team)) return 'Код повреждён.';
+    if (at(cx, cy) !== 'castle') return 'Код повреждён.';
+    const t = at(x, y);
+    if (!t || !isFinite(TERRAIN[t].cost) || t === 'castle' || t === 'village') return 'Код повреждён.';
+    seen.add(team);
+    slots.push({ team, castle: [cx, cy], cmd: [x, y] });
+  }
+  if (slots.length < 2) return 'На карте меньше двух сторон.';
+  const title = String(d.t || 'Чужая карта').slice(0, 24);
+  return { id, title, desc: `Своя карта ${w}x${h}, сторон: ${slots.length}.`, custom: true, map: rows.slice(), slots };
+}
 
 const SKIRMISH_GOLD =[500, 1000, 2000];
 // Командиры сторон в схватке

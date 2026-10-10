@@ -200,6 +200,8 @@ async function animEvents(events) {
       await tween(400, k => { o.alpha = k; });
     } else if (e.type === 'poison') {
       floater('Яд', e.x, e.y, '#9dff5a', 300);
+    } else if (e.type === 'slow') {
+      floater('Скован', e.x, e.y, '#8fd0ff', 300);
     } else if (e.type === 'cure') {
       floater('Яд снят', e.x, e.y, '#c8ffd0');
     } else if (e.type === 'destroy') {
@@ -412,6 +414,16 @@ function drawUnit(g, u, now) {
     g.arc(bx + z * 3, by + z * 3.9, z * 1.7, 0.3, Math.PI - 0.3);
     g.quadraticCurveTo(bx + z * 0.8, by + z * 3.4, bx + z * 3, by + z * 0.8);
     g.fill();
+  }
+  if (u.slow) {
+    // значок сковывания под ядом: голубая цепь из двух звеньев
+    const bx = x + ts - z * 6, by = (u.y + o.dy) * ts + (u.poison ? z * 6 : 0);
+    g.fillStyle = 'rgba(26,16,32,0.85)';
+    g.fillRect(bx, by, z * 6, z * 6);
+    g.strokeStyle = '#8fd0ff';
+    g.lineWidth = z * 0.9;
+    g.strokeRect(bx + z * 0.9, by + z * 0.9, z * 2.6, z * 2.6);
+    g.strokeRect(bx + z * 2.5, by + z * 2.5, z * 2.6, z * 2.6);
   }
   if (u.level > 0) {
     g.font = `bold ${Math.round(z * 4)}px "Trebuchet MS", sans-serif`;

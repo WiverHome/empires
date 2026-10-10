@@ -20,6 +20,7 @@ const BAL = {
   poisonAtk: 10,           // яд: -атака
   poisonDef: 10,           // яд: -защита
   poisonTurns: 3,          // сколько своих ходов держится яд (лечение снимает сразу)
+  slowMove: 2,             // сковывание (шаман): -очки хода на следующий свой ход
   wispAtk: 10,             // огонёк: +атака соседним союзникам
   waterDef: 15,            // водный юнит: +защита в воде и на мелководье
   vision: 3,               // туман войны: обзор юнита в клетках (летающим +1, на холме и горе +1)
@@ -92,6 +93,12 @@ const UNIT_DEFS = {
     poison: true,
     desc: 'Отравляет цель: яд снижает атаку и защиту, пока его не вылечат.',
   },
+  shaman: {
+    name: 'Шаман', sprite: 86, cost: 350, move: 4, atk: [35, 40], def: 5, range: [1, 2],
+    weapon: { sheet: 'dungeon', idx: 128, x: 24, y: 10 },
+    slow: true,
+    desc: 'Бьёт на 1-2 клетки. Сковывает цель: в свой следующий ход она пройдёт на 2 клетки меньше.',
+  },
   wisp: {
     name: 'Огонёк', proc: 'wisp', cost: 450, move: 5, atk: [35, 40], def: 5, range: [1, 1],
     auraAtk: true, vsUndead: 30,
@@ -146,6 +153,12 @@ const UNIT_DEFS = {
     commander: true, canCapture: true, canRaise: true, noBuy: true, undead: true,
     desc: 'Тёмный жрец. Поднимает мёртвых.',
   },
+  haar: {
+    name: 'Хаар', sprite: 96, cost: 0, move: 5, atk: [55, 65], def: 20, range: [1, 1],
+    weapon: { sheet: 'dungeon', idx: 118, x: 22, y: 12 },
+    commander: true, canCapture: true, slow: true, noBuy: true,
+    desc: 'Северный вождь. Его удар сковывает.',
+  },
   witch: {
     name: 'Ильва', sprite: 100, cost: 0, move: 5, atk: [50, 60], def: 15, range: [1, 2],
     weapon: { sheet: 'dungeon', idx: 130, x: 24, y: 10 },
@@ -155,7 +168,7 @@ const UNIT_DEFS = {
 };
 
 // Порядок в меню покупки
-const BUY_LIST = ['soldier', 'archer', 'healer', 'undine', 'bat', 'spider', 'mage', 'wisp', 'golem', 'catapult', 'demon'];
+const BUY_LIST = ['soldier', 'archer', 'healer', 'undine', 'bat', 'spider', 'shaman', 'mage', 'wisp', 'golem', 'catapult', 'demon'];
 
 // Стороны
 const TEAMS = {

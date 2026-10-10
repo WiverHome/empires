@@ -11,6 +11,7 @@ const GAME = {
   fired: [],          // индексы сработавших триггеров
   aiRunning: false,
   session: 0,         // растёт при каждом запуске/выходе: старый цикл ИИ видит смену и выходит
+  history: [],        // снимки до каждого действия игрока в этом ходу (для отмены)
 };
 
 const $ = sel => document.querySelector(sel);
@@ -23,7 +24,7 @@ function seenUnitAt(x, y) {
   return visibleTiles(GAME.st, viewTeam()).has(key(x, y)) ? u : null;
 }
 const seen = list => GAME.st.fog ? list.filter(t => seenUnitAt(t.x, t.y)) : list;
-const isHumanTurn = () => GAME.st && !GAME.st.teams[GAME.st.active].ai;
+const isHumanTurn = () => GAME.st && !GAME.replay && !GAME.st.teams[GAME.st.active].ai;
 const humanTeams = () => GAME.st.order.filter(t => !GAME.st.teams[t].ai);
 // Чью казну и отряд показывать: активного игрока, а в ход ИИ - последнего ходившего человека
 function viewTeam() {
@@ -33,17 +34,28 @@ function viewTeam() {
 }
 
 /* ---------- Запуск миссии ---------- */
-async function startMission(id, resume) {
+// replay: { rinit, log } - показать записанную партию вместо игры
+async function startMission(id, resume, replay) {
   const mission = missionById(id);
   GAME.session++;
   GAME.aiRunning = false;
   GAME.mission = mission;
+  GAME.replay = replay ? { log: replay.log, i: 0 } : null;
   GAME.fired = resume ? resume.fired.slice() : [];
-  GAME.st = resume ? resume.state : createState(mission, {
-    commanderLevel: mission.skirmish ? 0 : SAVE.data.heroLevel || 0,
-    difficulty: SAVE.data.prefs.difficulty || 'normal',
-  });
+  if (resume) GAME.st = resume.state;
+  else {
+    // всё, что нужно для повтора: сид и параметры создания, затем журнал действий в st.log
+    const rinit = replay ? replay.rinit : {
+      seed: Math.floor(Math.random() * 2 ** 32) >>> 0,
+      commanderLevel: mission.skirmish ? 0 : SAVE.data.heroLevel || 0,
+      difficulty: SAVE.data.prefs.difficulty || 'normal',
+    };
+    GAME.st = createState(mission, rinit);
+    GAME.st.rinit = rinit;
+    GAME.st.log = [];
+  }
   GAME.lastHuman = null;
+  GAME.history = [];
   GAME.sel = null;
   GAME.mode = 'busy';
   showScreen('game');
@@ -73,7 +85,7 @@ async function afterTurnStart(events) {
   else if (heals.length) animEvents(heals);
   await runTriggers({ phase: 'turn', events });
   if (await checkOutcome()) return;
-  if (st.teams[st.active].ai) runAI();
+  if (st.teams[st.active].ai || GAME.replay) runAI();
   else {
     if (humanTeams().length > 1) await passDevice();
     await startHumanTurn();
@@ -93,6 +105,7 @@ function passDevice() {
 }
 
 async function startHumanTurn() {
+  GAME.history = [];
   GAME.mode = 'idle';
   GAME.lastHuman = GAME.st.active;
   SAVE.saveCurrent();
@@ -104,8 +117,41 @@ async function startHumanTurn() {
 async function endTurnFlow() {
   deselect();
   GAME.mode = 'busy';
+  logAction({ kind: 'end' });
   const events = endTurn(GAME.st);
   await afterTurnStart(events);
+}
+
+/* ---------- Журнал действий и повтор ---------- */
+// a - действие в формате aiApply; s - сид перед действием (ИИ тратит случайность на выбор хода)
+function logAction(a) {
+  if (GAME.replay || !GAME.st.log) return;
+  GAME.st.log.push({ ...a, s: GAME.st.seed });
+}
+
+function replayNext() {
+  const r = GAME.replay, a = r.log[r.i++];
+  if (!a) return null;
+  if (a.s != null) GAME.st.seed = a.s;
+  return a;
+}
+
+function showReplayEnd(res) {
+  GAME.mode = 'over';
+  const st = GAME.st;
+  const who = res === 'win' && GAME.mission.skirmish && st.winner ? `Победа: ${teamName(st, st.winner)}` : res === 'win' ? 'Победа' : res ? 'Поражение' : 'Запись окончена';
+  const m = openModal(`<h2>Повтор окончен</h2><p>${who}</p><p class="muted">Ходов: ${st.turn}</p>
+    <div class="modal-actions"><button data-again>Ещё раз</button><button class="secondary" data-menu>В меню</button></div>`, 'result');
+  m.querySelector('[data-again]').onclick = () => { closeModal(); startReplay(GAME.replayRec); };
+  m.querySelector('[data-menu]').onclick = () => { closeModal(); quitToTitle(); };
+}
+
+// rec - запись из SAVE.data.replays
+function startReplay(rec) {
+  if (rec.map && !skirmishMapById(rec.map.id)) CUSTOM_MAPS.push(rec.map);   // карту могли удалить
+  if (!missionById(rec.missionId)) return;
+  GAME.replayRec = rec;
+  startMission(rec.missionId, null, { rinit: rec.rinit, log: rec.log });
 }
 
 /* ---------- Сценарий ---------- */
@@ -132,7 +178,9 @@ async function checkOutcome() {
   GAME.mode = 'over';
   GAME.st.over = res;
   deselect();
+  if (GAME.replay) { showReplayEnd(res); return true; }
   SAVE.clearCurrent();
+  SAVE.addReplay(GAME.mission, GAME.st, res);
   if (res === 'win') {
     SND.play('win');
     if (!GAME.mission.skirmish) {
@@ -140,12 +188,15 @@ async function checkOutcome() {
       SAVE.missionWon(GAME.mission.id, GAME.st);
     }
   } else SND.play('lose');
+  grantAchievements({ phase: 'end', res });
   showResult(res);
   return true;
 }
 
 // Общая обработка после действия: анимация, триггеры, проверка исхода
 async function afterAction(events) {
+  trackEvents(GAME.st, events);
+  grantAchievements({ phase: 'events', events });
   updateHud();
   await animEvents(events);
   await runTriggers({ phase: 'events', events });
@@ -164,8 +215,10 @@ async function runAI() {
     for (;;) {
       if (!alive()) return;
       await sleep(30);
-      const a = aiNextAction(GAME.st, GAME.mission);
+      const a = GAME.replay ? replayNext() : aiNextAction(GAME.st, GAME.mission);
+      if (!a) { GAME.aiRunning = false; showReplayEnd(); return; }
       if (a.kind === 'end') { GAME.aiRunning = false; await endTurnFlow(); return; }
+      logAction(a);
       if (a.kind === 'buy') {
         await ensureVisible(a.x, a.y);
         const ev = actBuy(GAME.st, GAME.st.active, a.type, a.x, a.y);
@@ -293,7 +346,7 @@ async function executePendingAttack() {
   VIEW.hl.path = null;
   actMove(GAME.st, u, p.x, p.y);
   if (path.length > 1) { SND.play('move'); await animMove(u, path); }
-  doAct(u, () => actAttack(GAME.st, u, t));
+  doAct(u, { act: 'attack', target: t.id });
 }
 
 async function moveSelected(x, y) {
@@ -326,13 +379,13 @@ function openActionMenu(u) {
   const opts = [];
   const targets = unitTargets(u);
   if (targets.length) opts.push(['Атаковать', () => startTargeting(u, targets)]);
-  if (canCaptureAt(GAME.st, u)) opts.push(['Захватить', () => doAct(u, () => actCapture(GAME.st, u))]);
-  if (canRepairAt(GAME.st, u)) opts.push(['Отстроить', () => doAct(u, () => actRepair(GAME.st, u))]);
+  if (canCaptureAt(GAME.st, u)) opts.push(['Захватить', () => doAct(u, { act: 'capture' })]);
+  if (canRepairAt(GAME.st, u)) opts.push(['Отстроить', () => doAct(u, { act: 'repair' })]);
   const ruinable = GAME.orig.x === u.x && GAME.orig.y === u.y ? destroyTargets(GAME.st, u) : [];
   if (ruinable.length) opts.push(['Разрушить', () => startDestroying(u, ruinable)]);
   const graves = UNIT_DEFS[u.type].canRaise ? gravesNear(GAME.st, u.x, u.y) : [];
   if (graves.length && teamUnits(GAME.st, u.team).length < BAL.unitCap) opts.push(['Поднять мертвеца', () => startRaising(u, graves)]);
-  opts.push(['Ждать', () => doAct(u, () => actWait(GAME.st, u))]);
+  opts.push(['Ждать', () => doAct(u, { act: 'wait' })]);
   opts.push(['Отмена', undoMove]);
   showPopupMenu(u.x, u.y, opts);
   // подсветить цели, чтобы их было видно сразу
@@ -361,12 +414,42 @@ function startDestroying(u, spots) {
   setHint('Выберите деревню. Esc - назад.');
 }
 
-async function doAct(u, fn) {
+// Запомнить состояние перед действием. Юнит u (уже сдвинутый) возвращается на исходную клетку.
+// Сид случайностей тоже в состоянии: после отмены тот же удар даст тот же результат.
+function pushUndo(u) {
+  const snap = JSON.parse(JSON.stringify({ st: GAME.st, fired: GAME.fired }));
+  const su = u && snap.st.units.find(o => o.id === u.id);
+  if (su && GAME.orig) { su.x = GAME.orig.x; su.y = GAME.orig.y; su.moved = false; }
+  GAME.history.push(snap);
+  if (GAME.history.length > 30) GAME.history.shift();
+}
+
+function undoAction() {
+  if (!GAME.history.length || !isHumanTurn() || !['idle', 'selected'].includes(GAME.mode)) return;
+  const snap = GAME.history.pop();
+  SND.play('click');
+  deselect();
+  GAME.st = snap.st;
+  GAME.fired = snap.fired;
+  VIEW.st = GAME.st;
+  refreshTerrain();
+  clearHighlights();
+  VIEW.offsets.clear();
+  VIEW.floaters = [];
+  SAVE.saveCurrent();
+  updateHud();
+}
+
+// spec: { act: 'attack', target } | { act: 'capture' } | ... - формат действий ИИ (aiApply), юнит уже стоит на клетке
+async function doAct(u, spec) {
+  pushUndo(u);
   hidePopup();
   setHint('');
   GAME.mode = 'busy';
   VIEW.hl.targets = VIEW.hl.graves = VIEW.hl.threat = null;
-  const ev = fn();
+  const a = { unit: u.id, to: { x: u.x, y: u.y }, ...spec };
+  logAction(a);
+  const ev = aiApply(GAME.st, a);
   GAME.sel = null; GAME.orig = null; GAME.reach = null; VIEW.selected = null;
   if (await afterAction(ev)) return;
   GAME.mode = 'idle';
@@ -403,13 +486,13 @@ function onTileClick(x, y) {
     }
     case 'action': {
       const t = u && unitTargets(sel).find(o => o.id === u.id);
-      if (t) { doAct(sel, () => actAttack(st, sel, t)); return; }
+      if (t) { doAct(sel, { act: 'attack', target: t.id }); return; }
       undoMove();
       return;
     }
     case 'targeting': {
       const t = u && VIEW.hl.targets.find(o => o.id === u.id);
-      if (t) doAct(sel, () => actAttack(st, sel, t));
+      if (t) doAct(sel, { act: 'attack', target: t.id });
       else { setHint(''); hideForecast(); openActionMenu(sel); }
       return;
     }
@@ -424,13 +507,13 @@ function onTileClick(x, y) {
     }
     case 'raising': {
       const gr = VIEW.hl.graves.find(g => g.x === x && g.y === y);
-      if (gr) doAct(sel, () => actRaise(st, sel, gr));
+      if (gr) doAct(sel, { act: 'raise', grave: { x: gr.x, y: gr.y } });
       else { setHint(''); openActionMenu(sel); }
       return;
     }
     case 'destroying': {
       const v = VIEW.hl.graves.find(g => g.x === x && g.y === y);
-      if (v) doAct(sel, () => actDestroy(st, sel, v.x, v.y));
+      if (v) doAct(sel, { act: 'destroy', spot: { x: v.x, y: v.y } });
       else { setHint(''); openActionMenu(sel); }
       return;
     }
@@ -464,7 +547,7 @@ function updateHud() {
   const st = GAME.st;
   if (!st) return;
   const team = st.active, t = TEAMS[team], me = viewTeam();
-  VIEW.fogTeam = st.fog ? me : null;
+  VIEW.fogTeam = st.fog && !GAME.replay ? me : null;
   const turnTxt = GAME.mission.turnLimit ? `Ход ${st.turn}/${GAME.mission.turnLimit}` : `Ход ${st.turn}`;
   $('#hud-turn').innerHTML = `<span class="chip" style="background:${t.color}"></span>${turnTxt}<span class="hide-narrow"> · ${teamName(st, team)}</span>`;
   const mine = st.teams[me];
@@ -472,6 +555,7 @@ function updateHud() {
   $('#hud-units').textContent = `Отряд ${teamUnits(st, me).length}/${BAL.unitCap}`;
   const human = isHumanTurn() && GAME.mode !== 'over';
   $('#btn-end').disabled = !human;
+  $('#btn-undo').disabled = !human || !GAME.history.length;
   const allDone = human && teamUnits(st, team).every(u => u.acted);
   $('#btn-end').classList.toggle('pulse', allDone);
 }
@@ -498,10 +582,11 @@ function showInfo(x, y) {
         <span title="Здоровье">❤ ${u.hp}</span>
         ${d.noAttack ? '' : `<span title="Атака">⚔ ${lo}-${hi}</span>`}
         <span title="Защита (своя + местность)">⛨ ${baseDef}${terrDef ? '+' + terrDef : ''}</span>
-        <span title="Очки хода">➜ ${d.move}</span>
+        <span title="Очки хода">➜ ${moveOf(u)}</span>
         ${d.noAttack ? '' : `<span title="Дальность">◎ ${d.range[0] === d.range[1] ? d.range[0] : d.range.join('-')}</span>`}
       </div>
       <div class="xp"><i style="width:${u.level >= BAL.maxLevel ? 100 : u.xp / BAL.xpPerLevel * 100}%"></i></div>
+      ${u.slow ? `<div class="bad">Скован: −${BAL.slowMove} к ходу до конца своего хода.</div>` : ''}
       ${u.poison ? `<div class="bad">Отравлен: −${BAL.poisonAtk} атаки и защиты, ещё ${u.poison} х.</div>` : ''}
       <div class="desc">${d.desc}</div></div></div>`;
   }
@@ -571,7 +656,7 @@ async function showBanner(title, sub) {
 
 /* ---------- Диалоги ---------- */
 function showDialog(lines) {
-  if (!lines || !lines.length) return Promise.resolve();
+  if (!lines || !lines.length || GAME.replay) return Promise.resolve();
   return new Promise(resolve => {
     const box = $('#dialog');
     const prevMode = GAME.mode;
@@ -629,6 +714,8 @@ function openBuy(x, y) {
     if (ok) b.onclick = async () => {
       closeModal();
       GAME.mode = 'busy';
+      pushUndo(null);
+      logAction({ kind: 'buy', type, x, y });
       const ev = actBuy(st, team, type, x, y);
       if (await afterAction(ev)) return;
       GAME.mode = 'idle';
@@ -647,7 +734,8 @@ function showResult(res) {
   const next = MISSIONS[idx + 1];
   const m = openModal(`<h2 class="${win ? 'good' : 'bad'}">${win ? 'Победа!' : 'Поражение'}</h2>
     <p>${win ? (next ? 'Открыта следующая миссия.' : 'Кампания пройдена. Спасибо за игру!') : GAME.st.teams.blue.commanderDead ? 'Ардан пал. Без командира войско отступает.' : 'Задача миссии провалена.'}</p>
-    <p class="muted">Ходов: ${GAME.st.turn}</p>
+    ${win ? `<p class="stars-big">${starsText(missionStars(GAME.mission, GAME.st))}</p><p class="muted">${starsHint(GAME.mission)}</p>` : ''}
+    <p class="muted">Ходов: ${GAME.st.turn}, павших: ${teamStats(GAME.st, 'blue').lost}</p>
     <div class="modal-actions">
       ${win && next ? '<button data-next>Следующая миссия</button>' : ''}
       ${!win ? '<button data-retry>Переиграть</button>' : ''}
@@ -675,26 +763,60 @@ function showSkirmishResult(res) {
   m.querySelector('[data-menu]').onclick = () => { closeModal(); quitToTitle(); };
 }
 
+const starsText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+
+// Проверить и выдать достижения; ctx дополняется состоянием партии
+function grantAchievements(ctx) {
+  const st = GAME.st;
+  const ids = checkAchievements({ st, mission: GAME.mission, humans: st ? humanTeams() : [], save: SAVE.data, ...ctx });
+  if (!ids.length) return;
+  for (const id of ids) SAVE.data.achievements[id] = Date.now();
+  SAVE.write();
+  for (const id of ids) showToast('Достижение: ' + ACHIEVEMENTS.find(a => a.id === id).name);
+}
+
+const toastQueue = [];
+function showToast(text) {
+  toastQueue.push(text);
+  if (toastQueue.length > 1) return;
+  const next = () => {
+    const t = $('#toast');
+    t.textContent = toastQueue[0];
+    t.hidden = false;
+    SND.play('level');
+    setTimeout(() => {
+      t.hidden = true;
+      toastQueue.shift();
+      if (toastQueue.length) setTimeout(next, 200);
+    }, 2600);
+  };
+  next();
+}
+
 function openGameMenu() {
   if (!GAME.st) return;
   const m = openModal(`<h2>${GAME.mission.title}</h2><p class="goal">${GAME.mission.goal}</p>
     <div class="menu-col">
       <button data-resume>Продолжить</button>
       <button data-sound class="secondary">Звук: ${SND.muted ? 'выкл' : 'вкл'}</button>
+      <button data-music class="secondary">${musicLabel()}</button>
       <button data-rules class="secondary">Как играть</button>
-      <button data-restart class="secondary">Начать заново</button>
-      <button data-quit class="secondary">Выйти в меню</button>
+      ${GAME.replay ? '' : '<button data-restart class="secondary">Начать заново</button>'}
+      <button data-quit class="secondary">${GAME.replay ? 'Выйти из повтора' : 'Выйти в меню'}</button>
     </div>`);
   m.querySelector('[data-resume]').onclick = closeModal;
   m.querySelector('[data-sound]').onclick = e => { SND.muted = !SND.muted; SAVE.setPref('muted', SND.muted); e.target.textContent = 'Звук: ' + (SND.muted ? 'выкл' : 'вкл'); };
+  m.querySelector('[data-music]').onclick = e => { toggleMusic(); e.target.textContent = musicLabel(); };
   m.querySelector('[data-rules]').onclick = showRules;
-  m.querySelector('[data-restart]').onclick = () => { if (GAME.aiRunning) return; closeModal(); startMission(GAME.mission.id); };
+  const rs = m.querySelector('[data-restart]');
+  if (rs) rs.onclick = () => { if (GAME.aiRunning) return; closeModal(); startMission(GAME.mission.id); };
   m.querySelector('[data-quit]').onclick = () => { closeModal(); quitToTitle(); };
 }
 
 function quitToTitle() {
   GAME.session++;
   GAME.aiRunning = false;
+  GAME.replay = null;
   GAME.mode = 'over';
   GAME.st = null;
   VIEW.st = null;

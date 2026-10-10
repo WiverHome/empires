@@ -28,6 +28,21 @@ for (const m of ctx.__M) {
   for (const b of m.buildings || []) if (!ctx.__T[st.terrain[b.y][b.x]].building) errs.push(`building owner on ${st.terrain[b.y][b.x]} ${b.x},${b.y}`);
   for (const g of m.graves || []) if (st.terrain[g.y][g.x] === 'water') errs.push(`grave in water ${g.x},${g.y}`);
   for (const k of m.marks || []) if (!st.terrain[k.y] || !isFinite(ctx.__T[st.terrain[k.y][k.x]].cost)) errs.push(`mark on bad tile ${k.x},${k.y}`);
+  // схватка: замки всех сторон связаны пешим путём (мечник)
+  if (m.skirmish) {
+    const reach = new Set([m.buildings[0].x + ',' + m.buildings[0].y]), open = [[m.buildings[0].x, m.buildings[0].y]];
+    while (open.length) {
+      const [x, y] = open.pop();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+        if (nx < 0 || ny < 0 || nx >= st.w || ny >= st.h || reach.has(k) || !isFinite(ctx.__T[st.terrain[ny][nx]].cost)) continue;
+        reach.add(k); open.push([nx, ny]);
+      }
+    }
+    for (const b of m.buildings) if (!reach.has(b.x + ',' + b.y)) errs.push(`castle ${b.x},${b.y} unreachable on foot`);
+  }
+  // кампания: норма ходов для звёзд
+  if (!m.skirmish && !(m.par > 0)) errs.push('no par');
   if (errs.length) bad++;
   console.log(m.id, `${st.w}x${st.h}`, errs.length ? errs.join('; ') : 'ok');
 }
