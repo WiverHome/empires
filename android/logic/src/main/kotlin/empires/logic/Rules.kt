@@ -206,6 +206,7 @@ fun moveCostFor(st: GameState, type: String, x: Int, y: Int): Double {
     if (d.flying) return 1.0
     val t = TERRAIN[terrainAt(st, x, y)]!!
     if (d.swim && t.water) return 1.0
+    if (d.woods && terrainAt(st, x, y) == "forest") return 1.0   // волк: лес не замедляет
     return t.cost
 }
 fun moveCost(st: GameState, u: Unit, x: Int, y: Int): Double = moveCostFor(st, u.type, x, y)

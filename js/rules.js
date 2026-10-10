@@ -144,6 +144,7 @@ function moveCost(st, u, x, y) {
   if (d.flying) return 1;
   const t = TERRAIN[terrainAt(st, x, y)];
   if (d.swim && t.water) return 1;
+  if (d.woods && terrainAt(st, x, y) === 'forest') return 1;   // волк: лес не замедляет
   return t.cost;
 }
 

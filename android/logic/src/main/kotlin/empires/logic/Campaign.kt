@@ -588,7 +588,7 @@ val MISSIONS: List<Mission> = listOf(
             "h..,.C.,..h",
             "MM.v...v.MM",
         ),
-        teams = linkedMapOf("blue" to TeamCfg(gold = 600), "red" to TeamCfg(gold = 400, ai = true, buy = listOf("shaman", "soldier", "archer", "catapult"))),
+        teams = linkedMapOf("blue" to TeamCfg(gold = 800), "red" to TeamCfg(gold = 200, ai = true, buy = listOf("shaman", "soldier", "archer", "catapult"))),
         buildings = listOf(Building(5, 13, "blue"), Building(3, 14, "blue"), Building(7, 14, "blue"), Building(5, 0, "red"), Building(2, 2, "red"), Building(8, 2, "red")),
         units = listOf(
             UnitSpawn("hero", "blue", 5, 12, commander = true),
@@ -599,7 +599,6 @@ val MISSIONS: List<Mission> = listOf(
             UnitSpawn("archer", "blue", 7, 12),
             UnitSpawn("warlord", "red", 5, 1, hold = true),
             UnitSpawn("catapult", "red", 4, 2, hold = true),
-            UnitSpawn("catapult", "red", 6, 2, hold = true),
             UnitSpawn("soldier", "red", 2, 4),
             UnitSpawn("soldier", "red", 8, 4),
             UnitSpawn("shaman", "red", 5, 4),
@@ -739,7 +738,7 @@ val MISSIONS: List<Mission> = listOf(
                 spawn = listOf(Spawn("shaman", "red", 4, 1), Spawn("shaman", "red", 6, 1)),
             ),
             Trigger(
-                `when` = onTurn(6, "red"),
+                `when` = onTurn(8, "red"),
                 say = listOf(Line("haar", "Дух метели, приди!")),
                 spawn = listOf(Spawn("demon", "red", 5, 2)),
             ),

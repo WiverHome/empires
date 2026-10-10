@@ -82,6 +82,11 @@ const UNIT_DEFS = {
     flying: true,
     desc: 'Быстрый, летает над водой и горами. Не получает защиту от местности.',
   },
+  wolf: {
+    name: 'Волк', sprite: 124, cost: 250, move: 6, atk: [40, 45], def: 5, range: [1, 1],
+    woods: true,
+    desc: 'Быстрый и дешёвый. По лесу ходит как по равнине.',
+  },
   mage: {
     name: 'Чародей', sprite: 84, cost: 400, move: 4, atk: [45, 50], def: 5, range: [1, 2],
     weapon: { sheet: 'dungeon', idx: 129, x: 24, y: 10 },
@@ -168,7 +173,7 @@ const UNIT_DEFS = {
 };
 
 // Порядок в меню покупки
-const BUY_LIST = ['soldier', 'archer', 'healer', 'undine', 'bat', 'spider', 'shaman', 'mage', 'wisp', 'golem', 'catapult', 'demon'];
+const BUY_LIST = ['soldier', 'archer', 'wolf', 'healer', 'undine', 'bat', 'spider', 'shaman', 'mage', 'wisp', 'golem', 'catapult', 'demon'];
 
 // Стороны
 const TEAMS = {

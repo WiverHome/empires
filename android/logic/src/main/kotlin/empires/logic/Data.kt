@@ -75,6 +75,7 @@ class UnitDef(
     val canRaise: Boolean = false, val poison: Boolean = false, val slow: Boolean = false, val auraAtk: Boolean = false,
     val vsUndead: Int = 0, val swim: Boolean = false, val noMoveAttack: Boolean = false, val canDestroy: Boolean = false,
     val noBuy: Boolean = false, val undead: Boolean = false, val noAttack: Boolean = false, val commander: Boolean = false,
+    val woods: Boolean = false,
     val desc: String,
 ) {
     val rangeMin get() = range[0]
@@ -128,6 +129,17 @@ val UNIT_DEFS: Map<String, UnitDef> = linkedMapOf(
         range = listOf(1, 1),
         flying = true,
         desc = "Быстрый, летает над водой и горами. Не получает защиту от местности.",
+    ),
+    "wolf" to UnitDef(
+        name = "Волк",
+        sprite = 124,
+        cost = 250,
+        move = 6,
+        atk = listOf(40, 45),
+        def = 5,
+        range = listOf(1, 1),
+        woods = true,
+        desc = "Быстрый и дешёвый. По лесу ходит как по равнине.",
     ),
     "mage" to UnitDef(
         name = "Чародей",
@@ -323,7 +335,7 @@ val UNIT_DEFS: Map<String, UnitDef> = linkedMapOf(
 )
 
 // Порядок в меню покупки
-val BUY_LIST: List<String> = listOf("soldier", "archer", "healer", "undine", "bat", "spider", "shaman", "mage", "wisp", "golem", "catapult", "demon")
+val BUY_LIST: List<String> = listOf("soldier", "archer", "wolf", "healer", "undine", "bat", "spider", "shaman", "mage", "wisp", "golem", "catapult", "demon")
 
 // Стороны. name - в кампании, label - в схватке, flip - смотрит влево (стоит справа или сверху)
 class TeamDef(val name: String, val label: String, val color: String, val dark: String, val light: String, val flip: Boolean = false)

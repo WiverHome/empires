@@ -646,8 +646,8 @@ const MISSIONS = [
       'MM.v...v.MM',
     ],
     teams: {
-      blue: { gold: 600 },
-      red: { gold: 400, ai: true, buy: ['shaman', 'soldier', 'archer', 'catapult'] },
+      blue: { gold: 800 },
+      red: { gold: 200, ai: true, buy: ['shaman', 'soldier', 'archer', 'catapult'] },
     },
     buildings: [
       { x: 5, y: 13, team: 'blue' }, { x: 3, y: 14, team: 'blue' }, { x: 7, y: 14, team: 'blue' },
@@ -662,7 +662,6 @@ const MISSIONS = [
       { type: 'archer', team: 'blue', x: 7, y: 12 },
       { type: 'warlord', team: 'red', x: 5, y: 1, hold: true },
       { type: 'catapult', team: 'red', x: 4, y: 2, hold: true },
-      { type: 'catapult', team: 'red', x: 6, y: 2, hold: true },
       { type: 'soldier', team: 'red', x: 2, y: 4 },
       { type: 'soldier', team: 'red', x: 8, y: 4 },
       { type: 'shaman', team: 'red', x: 5, y: 4 },
@@ -828,7 +827,7 @@ const MISSIONS = [
         spawn: [{ type: 'shaman', team: 'red', x: 4, y: 1 }, { type: 'shaman', team: 'red', x: 6, y: 1 }],
       },
       {
-        when: onTurn(6, 'red'),
+        when: onTurn(8, 'red'),
         say: [{ who: 'haar', text: 'Дух метели, приди!' }],
         spawn: [{ type: 'demon', team: 'red', x: 5, y: 2 }],
       },

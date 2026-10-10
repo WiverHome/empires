@@ -154,6 +154,34 @@ val SKIRMISH_MAPS: List<SkirmishMap> = listOf(
         ),
         listOf(slot("blue", 1, 9, 2, 9), slot("yellow", 1, 1, 2, 1), slot("red", 9, 1, 8, 1), slot("green", 9, 9, 8, 9)),
     ),
+    SkirmishMap(
+        "fjords", "Фьорды", "Двое, протоки, броды и леса: раздолье волкам и водяным.",
+        rotateMap(
+            listOf(
+                "ff~.,C,.~ff",
+                "f.~.,,,.~.f",
+                "v.s..f..s.v",
+                "~~s.fff.s~~",
+                ".,,,.f.,,,.",
+                "ff.v.,.v.ff",
+            ), "ss~~=.=~~ss",
+        ),
+        listOf(slot("blue", 5, 12, 5, 11), slot("red", 5, 0, 5, 1)),
+    ),
+    SkirmishMap(
+        "cross", "Перекрёсток", "До четырёх сторон, дороги сходятся у руин в центре.",
+        mirrorMap(
+            listOf(
+                "ff..v,",
+                "fC,,,,",
+                ".,ff.,",
+                ".,f.h,",
+                "v,.h.,",
+                ",,,,,r",
+            ),
+        ),
+        listOf(slot("blue", 1, 9, 2, 9), slot("yellow", 1, 1, 2, 1), slot("red", 9, 1, 8, 1), slot("green", 9, 9, 8, 9)),
+    ),
 )
 
 // Свои карты игрока (заполняет приложение из сохранения), формат как у SKIRMISH_MAPS

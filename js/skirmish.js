@@ -158,6 +158,38 @@ const SKIRMISH_MAPS = [
       { team: 'green', castle: [9, 9], cmd: [8, 9] },
     ],
   },
+  {
+    id: 'fjords', title: 'Фьорды', desc: 'Двое, протоки, броды и леса: раздолье волкам и водяным.',
+    map: rotateMap([
+      'ff~.,C,.~ff',
+      'f.~.,,,.~.f',
+      'v.s..f..s.v',
+      '~~s.fff.s~~',
+      '.,,,.f.,,,.',
+      'ff.v.,.v.ff',
+    ], 'ss~~=.=~~ss'),
+    slots: [
+      { team: 'blue', castle: [5, 12], cmd: [5, 11] },
+      { team: 'red', castle: [5, 0], cmd: [5, 1] },
+    ],
+  },
+  {
+    id: 'cross', title: 'Перекрёсток', desc: 'До четырёх сторон, дороги сходятся у руин в центре.',
+    map: mirrorMap([
+      'ff..v,',
+      'fC,,,,',
+      '.,ff.,',
+      '.,f.h,',
+      'v,.h.,',
+      ',,,,,r',
+    ]),
+    slots: [
+      { team: 'blue', castle: [1, 9], cmd: [2, 9] },
+      { team: 'yellow', castle: [1, 1], cmd: [2, 1] },
+      { team: 'red', castle: [9, 1], cmd: [8, 1] },
+      { team: 'green', castle: [9, 9], cmd: [8, 9] },
+    ],
+  },
 ];
 
 // Свои карты игрока (заполняет main.js из сохранения), формат как у SKIRMISH_MAPS
