@@ -1,0 +1,60 @@
+# Проверки на каждый push в main и каждый PR: веб-версия (Node) и логика Android-версии (Kotlin).
+# Секреты не нужны, подпись и релизы здесь не затрагиваются.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Сборка и тесты
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Синтаксис JS
+        run: |
+          for f in js/*.js tools/*.js; do node --check "$f"; done
+
+      - name: Проверка карт
+        run: node tools/check-maps.js
+
+      - name: ИИ против ИИ (веб)
+        run: node tools/sim.js --runs 3 | tee sim-web.txt
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Кэш ~/.gradle (зависимости, обёртка, Kotlin)
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Тесты логики Android (Kotlin)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :logic:test --console=plain
+
+      - name: Совпадение веба и Kotlin
+        working-directory: android
+        env:
+          # вывод по-русски: кодировку JVM задаём явно, не полагаясь на локаль раннера
+          JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8
+        run: |
+          ./gradlew :logic:run --args="--runs 3" -q --console=plain > ../sim-kotlin.txt
+          diff ../sim-web.txt ../sim-kotlin.txt
