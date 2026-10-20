@@ -46,7 +46,9 @@ jobs:
 
       - name: Тесты логики Android (Kotlin)
         working-directory: android
-        run: ./gradlew :logic:test --console=plain
+        run: |
+          chmod +x gradlew
+          ./gradlew :logic:test --console=plain
 
       - name: Совпадение веба и Kotlin
         working-directory: android
