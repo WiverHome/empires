@@ -1,14 +1,13 @@
 import java.util.Properties
 
-// Нативная версия Empires: libGDX без WebView. Логика игры - модуль :logic (порт js/*.js).
+// Нативная версия Empires: libGDX без WebView, Kotlin встроен в AGP 9. Логика игры - модуль :logic (порт js/*.js).
 // Картинки и звуки берутся из общей папки assets/ в корне репозитория.
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
-val gdxVersion: String by rootProject.extra
-val natives: Configuration by configurations.creating
+val gdxVersion = rootProject.extra["gdxVersion"] as String
+val natives: Configuration = configurations.create("natives")
 
 // Ключ релиза и пароли - в android/local.properties (release.storeFile, release.storePassword,
 // release.keyAlias, release.keyPassword); сам файл ключа и local.properties в git не попадают
@@ -19,20 +18,20 @@ val releaseStore: File? = localProps.getProperty("release.storeFile")?.let { pat
 
 android {
     namespace = "empires.game"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.github.wiverhome.empires"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 3
         versionName = "0.3.0"
     }
 
     sourceSets["main"].apply {
         // общие картинки и звуки + тексты лицензий (NOTICES.txt, APACHE-2.0.txt)
-        assets.srcDirs("../../assets", "src/main/licenses")
-        jniLibs.srcDirs("libs")
+        assets.directories += listOf("../../assets", "src/main/licenses")
+        jniLibs.directories += "libs"
     }
 
     signingConfigs {
@@ -56,7 +55,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures { buildConfig = true }
     packaging { resources.excludes += "META-INF/*" }
 }
@@ -65,8 +63,8 @@ dependencies {
     implementation(project(":logic"))
     implementation("com.badlogicgames.gdx:gdx-backend-android:$gdxVersion")
     implementation("com.badlogicgames.gdx:gdx-freetype:$gdxVersion")
-    implementation("com.google.android.gms:play-services-nearby:19.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation("com.google.android.gms:play-services-nearby:19.5.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     for (abi in listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")) {
         natives("com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-$abi")
         natives("com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-$abi")
@@ -74,7 +72,7 @@ dependencies {
 }
 
 // Нативные .so libGDX раскладываются по ABI в app/libs перед сборкой
-val copyAndroidNatives by tasks.registering {
+val copyAndroidNatives = tasks.register("copyAndroidNatives") {
     doFirst {
         natives.files.forEach { jar ->
             val abi = jar.nameWithoutExtension.substringAfterLast("natives-")

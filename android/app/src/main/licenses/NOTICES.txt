@@ -7,10 +7,10 @@ Empires: Хроники Эльдора
 - RandomMind (OpenGameArt): Medieval: The Bard's Tale
 
 Библиотеки:
-- libGDX 1.13.1 (gdx, gdx-backend-android, gdx-freetype) - Apache License 2.0
+- libGDX 1.14.2 (gdx, gdx-backend-android, gdx-freetype) - Apache License 2.0
 - Kotlin standard library - Apache License 2.0
-- kotlinx.coroutines 1.8.1 - Apache License 2.0
-- Google Play services Nearby 19.3.0 - Android Software Development Kit License
+- kotlinx.coroutines 1.11.0 - Apache License 2.0
+- Google Play services Nearby 19.5.1 - Android Software Development Kit License
 - FreeType - FreeType License (FTL).
   Portions of this software are copyright (c) The FreeType Project (www.freetype.org). All rights reserved.
 
