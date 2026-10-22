@@ -24,11 +24,11 @@
 
 | Библиотека | Лицензия |
 |---|---|
-| [libGDX](https://libgdx.com) 1.13.1: gdx, gdx-backend-android, gdx-freetype | Apache License 2.0 |
+| [libGDX](https://libgdx.com) 1.14.2: gdx, gdx-backend-android, gdx-freetype | Apache License 2.0 |
 | [FreeType](https://freetype.org) (входит в нативные библиотеки gdx-freetype) | FreeType License (FTL) |
 | [Kotlin](https://kotlinlang.org) стандартная библиотека | Apache License 2.0 |
-| [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines) 1.8.1 | Apache License 2.0 |
-| [Google Play services Nearby](https://developers.google.com/nearby/connections/overview) 19.3.0 | Android Software Development Kit License |
+| [kotlinx.coroutines](https://github.com/Kotlin/kotlinx.coroutines) 1.11.0 | Apache License 2.0 |
+| [Google Play services Nearby](https://developers.google.com/nearby/connections/overview) 19.5.1 | Android Software Development Kit License |
 | Gradle Wrapper (только для сборки) | Apache License 2.0 |
 
 Части этой программы защищены авторским правом © The FreeType Project (www.freetype.org). Все права защищены.
