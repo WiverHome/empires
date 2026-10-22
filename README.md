@@ -80,6 +80,8 @@
 **Android 8.0+:** скачайте `empires-*.apk` со страницы [релизов](https://github.com/WiverHome/empires/releases/latest)
 и откройте файл на телефоне. Android попросит разрешить установку из этого источника - это нормально для приложений не из Google Play.
 
+Что менялось от версии к версии - в [CHANGELOG.md](CHANGELOG.md).
+
 ## Сборка из исходников
 
 ### Веб
@@ -95,7 +97,7 @@ node tools/serve.js
 
 ### Android
 
-Нативное приложение на Kotlin + libGDX (без WebView). Нужны JDK 17 и Android SDK (путь к SDK - в `android/local.properties`):
+Нативное приложение на Kotlin + libGDX (без WebView). Нужны JDK 17 и Android SDK с платформой 36 (путь к SDK - в `android/local.properties`):
 
 ```bash
 cd android && ./gradlew :app:assembleDebug

@@ -1,7 +1,7 @@
 /* ============ DATA: местность, юниты, баланс ============ */
 'use strict';
 
-const GAME_VERSION = '0.3.0';
+const GAME_VERSION = '0.3.1';
 
 // Общие числа баланса
 const BAL = {
